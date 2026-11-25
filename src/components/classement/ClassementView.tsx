@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
+import { ClubAccountGateCard } from "@/components/auth/ClubAccountGateCard";
 import {
   buildClassementDataset,
   type AnnualPlayerStanding,
@@ -1416,9 +1417,11 @@ export function ClassementView() {
           aria-label="Classement général annuel Coinch'Eirb"
           style={{ display: "flex", flexDirection: "column", gap: "14px" }}
         >
+          <ClubAccountGateCard />
+
           <div className="card-ruled">
             <span className="eyebrow">
-              Comptes joueurs optionnels · Saison universitaire
+              Comptes vérifiés par mot de passe · Saison universitaire
             </span>
             <h2 className="section-title" style={{ marginTop: "4px" }}>
               Classement Général Annuel Coinch&apos;Eirb
@@ -1430,9 +1433,9 @@ export function ClassementView() {
                 color: "var(--ink-secondary)",
               }}
             >
-              Les joueurs ayant relié un compte facultatif cumulent leurs points
-              de classement, victoires, Capots et Générales sur toute
-              l&apos;année scolaire.
+              Seuls les joueurs connectés avec un compte protégé (pseudo + mot
+              de passe) figurent au classement annuel officiel. Les invités sans
+              compte peuvent jouer en tournoi, mais restent hors classement.
             </p>
 
             <div className="annual-controls">
