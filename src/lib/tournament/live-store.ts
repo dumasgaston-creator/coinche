@@ -53,6 +53,123 @@ import type {
 } from "@/types/database";
 
 let cachedState: UnifiedTournamentState | null = null;
+let lastSyncedRevision = 0;
+let remoteSyncMode: "supabase" | "local" = "local";
+const seenRemoteEventIds = new Set<string>();
+
+export function getRemoteSyncMeta(): {
+  syncMode: "supabase" | "local";
+  revision: number;
+} {
+  return {
+    syncMode: remoteSyncMode,
+    revision: lastSyncedRevision,
+  };
+}
+
+export function setRemoteSyncMode(mode: "supabase" | "local"): void {
+  remoteSyncMode = mode;
+}
+
+function dispatchRemotePopupIfNew(remoteEvent: unknown): void {
+  if (typeof window === "undefined") {
+    return;
+  }
+  if (typeof remoteEvent !== "object" || remoteEvent === null) {
+    return;
+  }
+  const record = remoteEvent as Record<string, unknown>;
+  const id = record.id;
+  if (typeof id !== "string" || id.length === 0) {
+    return;
+  }
+  if (seenRemoteEventIds.has(id)) {
+    return;
+  }
+  seenRemoteEventIds.add(id);
+  if (seenRemoteEventIds.size > 150) {
+    const oldest = seenRemoteEventIds.values().next().value;
+    if (typeof oldest === "string") {
+      seenRemoteEventIds.delete(oldest);
+    }
+  }
+  dispatchLiveEventPayload(record);
+}
+
+/**
+ * Hydrate le store local depuis un snapshot distant Supabase Realtime
+ * uniquement si la revision distante est strictement plus recente.
+ */
+export function hydrateUnifiedStateFromRemote(params: {
+  state: UnifiedTournamentState | null;
+  revision: number;
+  lastEvent?: unknown;
+  mode?: "supabase" | "local";
+}): boolean {
+  if (params.mode !== undefined) {
+    remoteSyncMode = params.mode;
+  }
+  if (params.lastEvent !== undefined && params.lastEvent !== null) {
+    dispatchRemotePopupIfNew(params.lastEvent);
+  }
+  if (params.state === null || !isValidStoredState(params.state)) {
+    return false;
+  }
+  if (params.revision > 0 && params.revision <= lastSyncedRevision) {
+    return false;
+  }
+  if (params.revision > lastSyncedRevision) {
+    lastSyncedRevision = params.revision;
+  }
+  writeUnifiedTournamentState(params.state, { skipRemoteAdminSync: true });
+  return true;
+}
+
+function pushRemoteSyncAction(body: Record<string, unknown>): void {
+  if (typeof window === "undefined") {
+    return;
+  }
+  void fetch("/api/tournament/state", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  })
+    .then(async (res) => {
+      if (!res.ok) {
+        return;
+      }
+      const data = (await res.json().catch(() => null)) as {
+        mode?: string;
+        synced?: boolean;
+        revision?: number;
+        state?: UnifiedTournamentState;
+        lastEvent?: unknown;
+      } | null;
+      if (data === null) {
+        return;
+      }
+      if (data.mode === "supabase") {
+        remoteSyncMode = "supabase";
+        if (
+          data.synced === true &&
+          typeof data.revision === "number" &&
+          data.state !== undefined
+        ) {
+          hydrateUnifiedStateFromRemote({
+            state: data.state,
+            revision: data.revision,
+            lastEvent: data.lastEvent,
+            mode: "supabase",
+          });
+        }
+      } else if (data.mode === "local_fallback") {
+        remoteSyncMode = "local";
+      }
+    })
+    .catch(() => {
+      // Repli silencieux sur le stockage local en cas de coupure reseau
+    });
+}
 
 function isValidStoredState(raw: unknown): raw is UnifiedTournamentState {
   if (typeof raw !== "object" || raw === null) {
@@ -113,6 +230,7 @@ export function readUnifiedTournamentState(): UnifiedTournamentState {
  */
 export function writeUnifiedTournamentState(
   nextState: UnifiedTournamentState,
+  options?: { skipRemoteAdminSync?: boolean },
 ): UnifiedTournamentState {
   const stamped: UnifiedTournamentState = {
     ...nextState,
@@ -148,6 +266,13 @@ export function writeUnifiedTournamentState(
         // Ignore
       }
     }
+
+    if (options?.skipRemoteAdminSync !== true) {
+      pushRemoteSyncAction({
+        action: "admin_replace_state",
+        payload: { state: stamped },
+      });
+    }
   }
 
   return stamped;
@@ -155,10 +280,11 @@ export function writeUnifiedTournamentState(
 
 export function updateUnifiedTournamentState(
   updater: (current: UnifiedTournamentState) => UnifiedTournamentState,
+  options?: { skipRemoteAdminSync?: boolean },
 ): UnifiedTournamentState {
   const current = readUnifiedTournamentState();
   const next = updater(current);
-  return writeUnifiedTournamentState(next);
+  return writeUnifiedTournamentState(next, options);
 }
 
 /**
@@ -789,8 +915,11 @@ export function broadcastSpecialLiveEventFromStore(params: {
     phase = "passed";
   }
 
+  const eventId = `special-${params.specialKind}-${Date.now()}`;
+  seenRemoteEventIds.add(eventId);
+
   dispatchLiveEventPayload({
-    id: `special-${params.specialKind}-${Date.now()}`,
+    id: eventId,
     specialKind: params.specialKind,
     table_number: params.tableNumber,
     team_name_snapshot: params.teamName,
@@ -802,6 +931,11 @@ export function broadcastSpecialLiveEventFromStore(params: {
     customBadge: params.customBadge,
     contractNote: params.contractNote,
     created_at: new Date().toISOString(),
+  });
+
+  pushRemoteSyncAction({
+    action: "broadcast_special_event",
+    payload: params,
   });
 }
 
@@ -938,40 +1072,44 @@ export function recordDealInStore(params: {
   parlantePenalty: boolean;
 }): UnifiedTournamentState {
   const before = readUnifiedTournamentState();
-  const after = updateUnifiedTournamentState((state) => {
-    const updatedMatches = state.matches.map((match) => {
-      if (match.id !== params.matchId) {
-        return match;
-      }
-      const nextDealNum = match.deals.length + 1;
-      const newDeal: UnifiedDealRecord = {
-        id: `${match.id}-d${nextDealNum}-${Date.now()}`,
-        dealNumber: nextDealNum,
-        pointsTeamA: params.pointsTeamA,
-        pointsTeamB: params.pointsTeamB,
-        isTiebreaker:
-          match.phase === "pool" &&
-          nextDealNum > state.tournament.dealsPerPoolMatch,
-        specialAnnouncement: params.specialAnnouncement,
-        announcementOutcome: params.announcementOutcome,
-        parlantePenalty: params.parlantePenalty,
-      };
+  const after = updateUnifiedTournamentState(
+    (state) => {
+      const updatedMatches = state.matches.map((match) => {
+        if (match.id !== params.matchId) {
+          return match;
+        }
+        const nextDealNum = match.deals.length + 1;
+        const newDeal: UnifiedDealRecord = {
+          id: `${match.id}-d${nextDealNum}-${Date.now()}`,
+          dealNumber: nextDealNum,
+          pointsTeamA: params.pointsTeamA,
+          pointsTeamB: params.pointsTeamB,
+          isTiebreaker:
+            match.phase === "pool" &&
+            nextDealNum > state.tournament.dealsPerPoolMatch,
+          specialAnnouncement: params.specialAnnouncement,
+          announcementOutcome: params.announcementOutcome,
+          parlantePenalty: params.parlantePenalty,
+        };
 
-      return recomputeMatchFromDeals(
-        match,
-        [...match.deals, newDeal],
-        state.tournament.dealsPerPoolMatch,
-        "team",
-      );
-    });
+        return recomputeMatchFromDeals(
+          match,
+          [...match.deals, newDeal],
+          state.tournament.dealsPerPoolMatch,
+          "team",
+        );
+      });
 
-    return autoAdvanceTournamentStage({
-      ...state,
-      matches: updatedMatches,
-    });
-  });
+      return autoAdvanceTournamentStage({
+        ...state,
+        matches: updatedMatches,
+      });
+    },
+    { skipRemoteAdminSync: true },
+  );
 
   triggerAutomaticScorePopups(before, after, params.matchId);
+  pushRemoteSyncAction({ action: "record_deal", payload: params });
   return after;
 }
 
@@ -982,35 +1120,40 @@ export function editDealInStore(params: {
   pointsTeamB: number;
   parlantePenalty: boolean;
 }): UnifiedTournamentState {
-  return updateUnifiedTournamentState((state) => {
-    const updatedMatches = state.matches.map((match) => {
-      if (match.id !== params.matchId) {
-        return match;
-      }
-      const nextDeals = match.deals.map((d) => {
-        if (d.id !== params.dealId) {
-          return d;
+  const after = updateUnifiedTournamentState(
+    (state) => {
+      const updatedMatches = state.matches.map((match) => {
+        if (match.id !== params.matchId) {
+          return match;
         }
-        return {
-          ...d,
-          pointsTeamA: params.pointsTeamA,
-          pointsTeamB: params.pointsTeamB,
-          parlantePenalty: params.parlantePenalty,
-        };
+        const nextDeals = match.deals.map((d) => {
+          if (d.id !== params.dealId) {
+            return d;
+          }
+          return {
+            ...d,
+            pointsTeamA: params.pointsTeamA,
+            pointsTeamB: params.pointsTeamB,
+            parlantePenalty: params.parlantePenalty,
+          };
+        });
+        return recomputeMatchFromDeals(
+          match,
+          nextDeals,
+          state.tournament.dealsPerPoolMatch,
+          "team",
+        );
       });
-      return recomputeMatchFromDeals(
-        match,
-        nextDeals,
-        state.tournament.dealsPerPoolMatch,
-        "team",
-      );
-    });
 
-    return autoAdvanceTournamentStage({
-      ...state,
-      matches: updatedMatches,
-    });
-  });
+      return autoAdvanceTournamentStage({
+        ...state,
+        matches: updatedMatches,
+      });
+    },
+    { skipRemoteAdminSync: true },
+  );
+  pushRemoteSyncAction({ action: "edit_deal", payload: params });
+  return after;
 }
 
 export function recordDirectFinalScoreInStore(params: {
@@ -1019,37 +1162,41 @@ export function recordDirectFinalScoreInStore(params: {
   scoreTeamB: number;
 }): UnifiedTournamentState {
   const before = readUnifiedTournamentState();
-  const after = updateUnifiedTournamentState((state) => {
-    const updatedMatches = state.matches.map((match) => {
-      if (match.id !== params.matchId) {
-        return match;
-      }
-      let winnerId: string | null = null;
-      if (params.scoreTeamA > params.scoreTeamB) {
-        winnerId = match.teamAId;
-      } else if (params.scoreTeamB > params.scoreTeamA) {
-        winnerId = match.teamBId;
-      }
+  const after = updateUnifiedTournamentState(
+    (state) => {
+      const updatedMatches = state.matches.map((match) => {
+        if (match.id !== params.matchId) {
+          return match;
+        }
+        let winnerId: string | null = null;
+        if (params.scoreTeamA > params.scoreTeamB) {
+          winnerId = match.teamAId;
+        } else if (params.scoreTeamB > params.scoreTeamA) {
+          winnerId = match.teamBId;
+        }
 
-      return {
-        ...match,
-        scoreTeamA: params.scoreTeamA,
-        scoreTeamB: params.scoreTeamB,
-        isDirectFinalScore: true,
-        status: "completed" as const,
-        winnerTeamId: winnerId,
-        updatedByRole: "team" as const,
-        updatedAtLabel: formatStoreTimeLabel(),
-      };
-    });
+        return {
+          ...match,
+          scoreTeamA: params.scoreTeamA,
+          scoreTeamB: params.scoreTeamB,
+          isDirectFinalScore: true,
+          status: "completed" as const,
+          winnerTeamId: winnerId,
+          updatedByRole: "team" as const,
+          updatedAtLabel: formatStoreTimeLabel(),
+        };
+      });
 
-    return autoAdvanceTournamentStage({
-      ...state,
-      matches: updatedMatches,
-    });
-  });
+      return autoAdvanceTournamentStage({
+        ...state,
+        matches: updatedMatches,
+      });
+    },
+    { skipRemoteAdminSync: true },
+  );
 
   triggerAutomaticScorePopups(before, after, params.matchId);
+  pushRemoteSyncAction({ action: "record_direct_score", payload: params });
   return after;
 }
 
@@ -1083,38 +1230,48 @@ export function broadcastLiveAnnouncementFromStore(params: {
     created_at: new Date().toISOString(),
   };
 
-  updateUnifiedTournamentState((state) => {
-    const entry: UnifiedLiveFeedItem = {
-      id: `${params.announcementId}-${params.phase}-${Date.now()}`,
-      tableNumber: params.tableNumber,
-      teamName: params.teamName,
-      announcementType: params.announcementType,
-      phase: params.phase,
-      pointsAwarded: params.pointsAwarded,
-      createdAtLabel: formatStoreTimeLabel(),
-    };
+  seenRemoteEventIds.add(params.announcementId);
 
-    const updatedMatches = state.matches.map((m) => {
-      if (m.id !== params.matchId) {
-        return m;
-      }
-      let notePrefix = "Annonce";
-      if (params.phase === "passed") {
-        notePrefix = "Passé";
-      } else if (params.phase === "failed") {
-        notePrefix = "Chuté";
-      }
-      return {
-        ...m,
-        highlightNote: `${params.announcementType.toUpperCase()} · ${notePrefix} (${params.teamName})`,
+  updateUnifiedTournamentState(
+    (state) => {
+      const entry: UnifiedLiveFeedItem = {
+        id: `${params.announcementId}-${params.phase}-${Date.now()}`,
+        tableNumber: params.tableNumber,
+        teamName: params.teamName,
+        announcementType: params.announcementType,
+        phase: params.phase,
+        pointsAwarded: params.pointsAwarded,
+        createdAtLabel: formatStoreTimeLabel(),
       };
-    });
 
-    return {
-      ...state,
-      matches: updatedMatches,
-      liveFeed: [entry, ...state.liveFeed.slice(0, 29)],
-    };
+      const updatedMatches = state.matches.map((m) => {
+        if (m.id !== params.matchId) {
+          return m;
+        }
+        let notePrefix = "Annonce";
+        if (params.phase === "passed") {
+          notePrefix = "Passé";
+        } else if (params.phase === "failed") {
+          notePrefix = "Chuté";
+        }
+        return {
+          ...m,
+          highlightNote: `${params.announcementType.toUpperCase()} · ${notePrefix} (${params.teamName})`,
+        };
+      });
+
+      return {
+        ...state,
+        matches: updatedMatches,
+        liveFeed: [entry, ...state.liveFeed.slice(0, 29)],
+      };
+    },
+    { skipRemoteAdminSync: true },
+  );
+
+  pushRemoteSyncAction({
+    action: "broadcast_announcement",
+    payload: params,
   });
 
   if (typeof window !== "undefined") {
@@ -1151,64 +1308,69 @@ export function submitTableAlertToStore(params: {
   message: string;
   applyImmediateForfeit: boolean;
 }): UnifiedTournamentState {
-  return updateUnifiedTournamentState((state) => {
-    const alert: UnifiedRefereeAlert = {
-      id: `alert-${Date.now()}`,
-      matchId: params.matchId,
-      tableNumber: params.tableNumber,
-      requestingTeamId: params.teamId,
-      requestingTeamName: params.teamName,
-      alertType: params.alertType,
-      message: params.message,
-      status: "open",
-      createdAtLabel: formatStoreTimeLabel(),
-      resolvedAtLabel: null,
-    };
+  const after = updateUnifiedTournamentState(
+    (state) => {
+      const alert: UnifiedRefereeAlert = {
+        id: `alert-${Date.now()}`,
+        matchId: params.matchId,
+        tableNumber: params.tableNumber,
+        requestingTeamId: params.teamId,
+        requestingTeamName: params.teamName,
+        alertType: params.alertType,
+        message: params.message,
+        status: "open",
+        createdAtLabel: formatStoreTimeLabel(),
+        resolvedAtLabel: null,
+      };
 
-    let nextMatches = state.matches;
-    let nextTeams = state.teams;
+      let nextMatches = state.matches;
+      let nextTeams = state.teams;
 
-    if (params.applyImmediateForfeit) {
-      nextTeams = state.teams.map((t) => {
-        if (t.id === params.teamId) {
-          return { ...t, isForfeit: true };
-        }
-        return t;
+      if (params.applyImmediateForfeit) {
+        nextTeams = state.teams.map((t) => {
+          if (t.id === params.teamId) {
+            return { ...t, isForfeit: true };
+          }
+          return t;
+        });
+
+        nextMatches = state.matches.map((m) => {
+          if (m.id !== params.matchId) {
+            return m;
+          }
+          let winnerId = m.teamAId;
+          let scoreA = 500;
+          let scoreB = 0;
+          if (m.teamAId === params.teamId) {
+            winnerId = m.teamBId;
+            scoreA = 0;
+            scoreB = 500;
+          }
+          return {
+            ...m,
+            status: "forfeit" as const,
+            forfeitTeamId: params.teamId,
+            winnerTeamId: winnerId,
+            scoreTeamA: scoreA,
+            scoreTeamB: scoreB,
+            updatedByRole: "team" as const,
+            updatedAtLabel: formatStoreTimeLabel(),
+          };
+        });
+        nextMatches = propagateKnockoutWinners(nextMatches);
+      }
+
+      return autoAdvanceTournamentStage({
+        ...state,
+        teams: nextTeams,
+        matches: nextMatches,
+        alerts: [alert, ...state.alerts],
       });
-
-      nextMatches = state.matches.map((m) => {
-        if (m.id !== params.matchId) {
-          return m;
-        }
-        let winnerId = m.teamAId;
-        let scoreA = 500;
-        let scoreB = 0;
-        if (m.teamAId === params.teamId) {
-          winnerId = m.teamBId;
-          scoreA = 0;
-          scoreB = 500;
-        }
-        return {
-          ...m,
-          status: "forfeit" as const,
-          forfeitTeamId: params.teamId,
-          winnerTeamId: winnerId,
-          scoreTeamA: scoreA,
-          scoreTeamB: scoreB,
-          updatedByRole: "team" as const,
-          updatedAtLabel: formatStoreTimeLabel(),
-        };
-      });
-      nextMatches = propagateKnockoutWinners(nextMatches);
-    }
-
-    return autoAdvanceTournamentStage({
-      ...state,
-      teams: nextTeams,
-      matches: nextMatches,
-      alerts: [alert, ...state.alerts],
-    });
-  });
+    },
+    { skipRemoteAdminSync: true },
+  );
+  pushRemoteSyncAction({ action: "submit_alert", payload: params });
+  return after;
 }
 
 /* ==========================================================================

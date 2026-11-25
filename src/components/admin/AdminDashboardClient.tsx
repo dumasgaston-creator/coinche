@@ -63,7 +63,7 @@ interface AdminDashboardClientProps {
  * - Relie au store temps reel partage avec `/ma-table`, `/classement`, `/equipe` et `/live`.
  */
 export function AdminDashboardClient(props: AdminDashboardClientProps) {
-  const { state, summary } = useTournamentStore();
+  const { state, summary, syncMode, syncRevision } = useTournamentStore();
 
   const [isServerAuthenticated, setIsServerAuthenticated] = useState<boolean>(
     props.initialIsAdmin === true,
@@ -713,6 +713,8 @@ export function AdminDashboardClient(props: AdminDashboardClientProps) {
         totalTeamCount={state.teams.length}
         openAlertsCount={openAlertsCount}
         adminDisplayName={adminDisplayName}
+        syncMode={syncMode}
+        syncRevision={syncRevision}
         isSubmitting={isSubmitting}
         onAdminLogout={handleAdminLogout}
         onUpdateTournamentTitle={(nextTitle: string) => {

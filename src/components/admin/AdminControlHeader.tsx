@@ -22,6 +22,8 @@ interface AdminControlHeaderProps {
   totalTeamCount: number;
   openAlertsCount: number;
   adminDisplayName: string;
+  syncMode?: "supabase" | "local";
+  syncRevision?: number;
   isSubmitting: boolean;
   onAdminLogout: () => void;
   onUpdateTournamentTitle: (nextTitle: string) => void;
@@ -92,10 +94,16 @@ export function AdminControlHeader(props: AdminControlHeaderProps) {
           <span className="badge badge-pass">
             Admin déverrouillé · {props.adminDisplayName}
           </span>
-          <span className="admin-subtitle">
-            Cookie `httpOnly` signé · Modifications propagées en direct vers
-            `/ma-table`, `/classement` et `/live`
-          </span>
+          {props.syncMode === "supabase" && (
+            <span className="badge badge-amber tabular-nums">
+              Synchro Multi-Téléphones · Rév. #{props.syncRevision ?? 0}
+            </span>
+          )}
+          {props.syncMode !== "supabase" && (
+            <span className="badge badge-neutral">
+              Mode local navigateur
+            </span>
+          )}
         </div>
 
         <div className="admin-auth-form">
