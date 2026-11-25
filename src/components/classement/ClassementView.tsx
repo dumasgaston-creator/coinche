@@ -4,7 +4,6 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import {
   buildClassementDataset,
-  type AnnualPlayerStanding,
   type ClassementFullDataset,
   type EveningStatsSummary,
   type KnockoutMatchView,
@@ -17,6 +16,11 @@ import {
   type CsvExportScope,
   type ExportResultFeedback,
 } from "@/lib/export/exporters";
+import {
+  computeCombinedAnnualLeaderboard,
+  type PlayerAnnualStandingLive,
+} from "@/lib/casual/casual-store";
+import { useCasualGamesStore } from "@/lib/casual/use-casual-store";
 import {
   findUnifiedTeam,
   formatOptionalTeamNickname,
@@ -423,6 +427,12 @@ function buildLiveClassementDatasetNoTernary(
 export function ClassementView() {
   const staticFallback = useMemo(() => buildClassementDataset(), []);
   const { state, summary } = useTournamentStore();
+  const { games: casualGames } = useCasualGamesStore();
+
+  const liveAnnualLeaderboard = useMemo(
+    () => computeCombinedAnnualLeaderboard(casualGames, state),
+    [casualGames, state],
+  );
 
   const dataset = useMemo(
     () => buildLiveClassementDatasetNoTernary(state, summary, staticFallback),
@@ -434,8 +444,6 @@ export function ClassementView() {
   const [selectedKnockoutPhase, setSelectedKnockoutPhase] =
     useState<KnockoutMatchView["phase"]>("round_of_16");
   const [annualSearch, setAnnualSearch] = useState<string>("");
-  const [annualSchoolYear, setAnnualSchoolYear] = useState<string>("2026-2027");
-  const [annualPromoFilter, setAnnualPromoFilter] = useState<string>("ALL");
 
   const [csvScope, setCsvScope] = useState<CsvExportScope>("all");
   const [isExporting, setIsExporting] = useState<boolean>(false);
@@ -457,35 +465,15 @@ export function ClassementView() {
     );
   }, [dataset.knockoutMatches, selectedKnockoutPhase]);
 
-  const filteredAnnualPlayers = useMemo(() => {
-    const query = annualSearch.trim().toLowerCase();
-    return dataset.annualPlayers.filter((player: AnnualPlayerStanding) => {
-      if (
-        annualSchoolYear !== "ALL" &&
-        player.schoolYear !== annualSchoolYear
-      ) {
-        return false;
+  const filteredLiveAnnual = useMemo(() => {
+    const q = annualSearch.trim().toLowerCase();
+    return liveAnnualLeaderboard.filter((p: PlayerAnnualStandingLive) => {
+      if (q.length === 0) {
+        return true;
       }
-      if (
-        annualPromoFilter !== "ALL" &&
-        player.promotionYear !== annualPromoFilter
-      ) {
-        return false;
-      }
-      if (query.length > 0) {
-        const hay = `${player.displayName} ${player.department} ${player.promotionYear}`.toLowerCase();
-        if (!hay.includes(query)) {
-          return false;
-        }
-      }
-      return true;
+      return p.displayName.toLowerCase().includes(q);
     });
-  }, [
-    dataset.annualPlayers,
-    annualSearch,
-    annualSchoolYear,
-    annualPromoFilter,
-  ]);
+  }, [liveAnnualLeaderboard, annualSearch]);
 
   function handleExportCsv() {
     setIsExporting(true);
@@ -1417,84 +1405,56 @@ export function ClassementView() {
           style={{ display: "flex", flexDirection: "column", gap: "14px" }}
         >
           <div className="card-ruled">
-            <span className="eyebrow">
-              Comptes joueurs optionnels · Saison universitaire
-            </span>
-            <h2 className="section-title" style={{ marginTop: "4px" }}>
-              Classement Général Annuel Coinch&apos;Eirb
-            </h2>
-            <p
+            <div
               style={{
-                margin: "6px 0 12px",
-                fontSize: "13px",
-                color: "var(--ink-secondary)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                gap: "8px",
+                flexWrap: "wrap",
               }}
             >
-              Les joueurs ayant relié un compte facultatif cumulent leurs points
-              de classement, victoires, Capots et Générales sur toute
-              l&apos;année scolaire.
-            </p>
-
-            <div className="annual-controls">
               <div>
-                <label className="field-label" htmlFor="annual-search">
-                  Rechercher un joueur ou une filière
-                </label>
-                <input
-                  id="annual-search"
-                  type="search"
-                  className="field-input"
-                  placeholder="Ex. Quentin, Adèle, Informatique, Matmeca..."
-                  value={annualSearch}
-                  onChange={(e) => setAnnualSearch(e.target.value)}
-                />
+                <span className="eyebrow">
+                  Tournois (×3) + Parties libres au BAR
+                </span>
+                <h2 className="section-title" style={{ marginTop: "4px" }}>
+                  Classement Annuel +/- ({filteredLiveAnnual.length} joueurs)
+                </h2>
               </div>
+              <Link href="/jouer" className="btn btn-sm btn-primary">
+                <TableCardsIcon size={15} />
+                <span>Compter une partie au BAR</span>
+              </Link>
+            </div>
 
-              <div>
-                <label className="field-label" htmlFor="annual-year">
-                  Année scolaire
-                </label>
-                <select
-                  id="annual-year"
-                  className="field-input"
-                  value={annualSchoolYear}
-                  onChange={(e) => setAnnualSchoolYear(e.target.value)}
-                >
-                  <option value="2026-2027">Saison 2026-2027</option>
-                  <option value="2025-2026">Archive 2025-2026</option>
-                  <option value="ALL">Toutes les saisons</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="field-label" htmlFor="annual-promo">
-                  Promotion
-                </label>
-                <select
-                  id="annual-promo"
-                  className="field-input"
-                  value={annualPromoFilter}
-                  onChange={(e) => setAnnualPromoFilter(e.target.value)}
-                >
-                  <option value="ALL">Toutes les promotions</option>
-                  <option value="1A (2028)">1A (2028)</option>
-                  <option value="2A (2027)">2A (2027)</option>
-                  <option value="3A (2026)">3A (2026)</option>
-                  <option value="Alumni">Alumni</option>
-                </select>
-              </div>
+            <div style={{ marginTop: "10px" }}>
+              <input
+                id="annual-search"
+                type="search"
+                className="field-input"
+                placeholder="Rechercher un joueur (prénom ou nom)..."
+                value={annualSearch}
+                onChange={(e) => setAnnualSearch(e.target.value)}
+              />
             </div>
           </div>
 
           <div className="annual-list">
-            {filteredAnnualPlayers.map((player) => {
+            {filteredLiveAnnual.map((player) => {
               let topAttr = "false";
               if (player.rank <= 3) {
                 topAttr = "true";
               }
+              let netBadgeClass = "badge badge-pass";
+              let netPrefix = "+";
+              if (player.netBalance < 0) {
+                netBadgeClass = "badge badge-fail";
+                netPrefix = "";
+              }
               return (
                 <article
-                  key={player.profileId}
+                  key={player.playerKey}
                   className="annual-player-card"
                   data-top={topAttr}
                 >
@@ -1519,7 +1479,7 @@ export function ClassementView() {
                         <strong
                           className="font-display"
                           style={{
-                            fontSize: "19px",
+                            fontSize: "20px",
                             textTransform: "uppercase",
                           }}
                         >
@@ -1531,13 +1491,24 @@ export function ClassementView() {
                             color: "var(--ink-secondary)",
                           }}
                         >
-                          {player.department} · {player.promotionYear} ·{" "}
-                          {player.bestFinishLabel}
+                          {player.gamesWon}V–{player.gamesLost}D ·{" "}
+                          {player.tournamentGames} tournoi ·{" "}
+                          {player.casualGames} BAR
                         </div>
                       </div>
                     </div>
 
-                    <div style={{ textAlign: "right" }}>
+                    <div
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "8px",
+                      }}
+                    >
+                      <span className={netBadgeClass}>
+                        {netPrefix}
+                        {player.netBalance} net
+                      </span>
                       <span
                         className="font-display tabular-nums"
                         style={{
@@ -1546,33 +1517,26 @@ export function ClassementView() {
                           color: "var(--accent-terracotta)",
                         }}
                       >
-                        {player.rankingPoints} pts
+                        {player.annualPoints} pts
                       </span>
-                      <div
-                        style={{
-                          fontSize: "11px",
-                          color: "var(--ink-muted)",
-                        }}
-                      >
-                        Saison {player.schoolYear}
-                      </div>
                     </div>
                   </div>
 
                   <div className="annual-stats-pills">
-                    <span className="badge badge-amber">
-                      {player.tournamentsPlayed} tournois (
-                      {player.tournamentsWon} titres)
-                    </span>
-                    <span className="badge badge-pass">
-                      {player.matchesWon}/{player.matchesPlayed} victoires
-                    </span>
+                    {player.bestPartner !== null && (
+                      <span className="badge badge-amber">
+                        Meilleur duo : {player.bestPartner.name} (
+                        {player.bestPartner.wins}V/{player.bestPartner.games})
+                      </span>
+                    )}
+                    {player.nemesis !== null && (
+                      <span className="badge badge-fail">
+                        Bête noire : {player.nemesis.name} ({player.nemesis.losses}D)
+                      </span>
+                    )}
                     <span className="badge badge-neutral">
-                      {player.totalPointsScored} pts marqués
-                    </span>
-                    <span className="badge badge-terracotta">
-                      {player.capotsPassed} Capots · {player.generalesPassed}{" "}
-                      Générales · {player.coinchesPassed} Coinches
+                      {player.pointsScored} marqués · {player.pointsConceded}{" "}
+                      encaissés
                     </span>
                   </div>
                 </article>

@@ -310,6 +310,9 @@ export function HomeView(props: HomeViewProps) {
                 <TableCardsIcon size={16} />
                 <span>Ma table</span>
               </Link>
+              <Link href="/jouer" className="home-nav-ghost">
+                <span>Partie libre (BAR)</span>
+              </Link>
               <Link href="/classement" className="home-nav-ghost">
                 <TrophyIcon size={15} />
                 <span>Poules &amp; Arbre</span>

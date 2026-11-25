@@ -1,0 +1,164 @@
+/* ==========================================================================
+   Coinch'Eirb · Feuille de style Mode Partie Libre (/jouer · Au BAR)
+   Mobile 375 px parfait, zéro débordement horizontal.
+   ========================================================================== */
+
+.jouer-shell {
+  width: 100%;
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 16px 14px 40px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.jouer-hero {
+  background-color: #161210;
+  color: #f7f2e8;
+  border-radius: 14px;
+  border: 1px solid rgba(232, 166, 40, 0.38);
+  border-top: 3px solid #e8a628;
+  padding: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.jouer-title {
+  margin: 4px 0 0;
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: clamp(26px, 7vw, 36px);
+  line-height: 0.96;
+  text-transform: uppercase;
+  color: #f7f2e8;
+}
+
+.jouer-teams-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+}
+
+.jouer-side-card {
+  background-color: var(--bg-surface-alt);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-control);
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.jouer-side-card[data-side="a"] {
+  border-left: 3px solid var(--accent-amber);
+}
+
+.jouer-side-card[data-side="b"] {
+  border-left: 3px solid var(--accent-terracotta);
+}
+
+.jouer-target-row {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.jouer-target-btn {
+  min-height: 38px;
+  border-radius: var(--radius-tag);
+  border: 1px solid var(--border-strong);
+  background-color: var(--bg-surface);
+  color: var(--ink-secondary);
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 14px;
+  text-transform: uppercase;
+}
+
+.jouer-target-btn[data-active="true"] {
+  background-color: var(--accent-amber);
+  color: var(--accent-amber-ink);
+  border-color: var(--accent-amber-hover);
+}
+
+.jouer-tag-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.jouer-tag-pill {
+  min-height: 32px;
+  padding: 0 10px;
+  border-radius: 6px;
+  border: 1px solid var(--border-strong);
+  background-color: var(--bg-surface);
+  color: var(--ink-secondary);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.jouer-tag-pill[data-active="true"] {
+  background-color: var(--accent-terracotta);
+  color: #ffffff;
+  border-color: var(--accent-terracotta);
+}
+
+.jouer-history-card {
+  background-color: var(--bg-surface);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-control);
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.jouer-history-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 11.5px;
+  color: var(--ink-muted);
+}
+
+.jouer-history-match {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: 8px;
+}
+
+.jouer-history-side {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 17px;
+  text-transform: uppercase;
+  line-height: 1.08;
+}
+
+.jouer-history-side[data-winner="true"] {
+  color: var(--status-pass);
+}
+
+.jouer-history-score {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 22px;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+  padding: 2px 8px;
+  border-radius: 6px;
+  background-color: var(--bg-surface-alt);
+}
+
+@media (min-width: 640px) {
+  .jouer-teams-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+}
