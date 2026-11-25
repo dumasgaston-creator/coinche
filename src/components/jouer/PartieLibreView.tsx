@@ -2,6 +2,7 @@
 
 import { useMemo, useState, type FormEvent } from "react";
 import Link from "next/link";
+import { ClubAccountGateCard } from "@/components/auth/ClubAccountGateCard";
 import {
   addDealToCasualGameInStore,
   collectKnownSchoolPlayers,
@@ -364,8 +365,59 @@ export function PartieLibreView() {
               </div>
             </form>
           )}
+
+          {activeGame.status === "completed" && (
+            <div
+              style={{
+                marginTop: "10px",
+                display: "flex",
+                gap: "8px",
+                flexWrap: "wrap",
+              }}
+            >
+              <button
+                type="button"
+                className="btn btn-sm btn-primary"
+                onClick={() => {
+                  const created = startCasualGame({
+                    playerA1: activeGame.teamA[0],
+                    playerA2: activeGame.teamA[1],
+                    playerB1: activeGame.teamB[0],
+                    playerB2: activeGame.teamB[1],
+                    targetScore: activeGame.targetScore,
+                    locationLabel: "Au BAR",
+                  });
+                  setActiveGameId(created.id);
+                }}
+              >
+                Revanche (mêmes équipes)
+              </button>
+              <button
+                type="button"
+                className="btn btn-sm btn-secondary"
+                onClick={() => {
+                  const created = startCasualGame({
+                    playerA1: activeGame.teamA[0],
+                    playerA2: activeGame.teamB[0],
+                    playerB1: activeGame.teamA[1],
+                    playerB2: activeGame.teamB[1],
+                    targetScore: activeGame.targetScore,
+                    locationLabel: "Au BAR",
+                  });
+                  setActiveGameId(created.id);
+                }}
+              >
+                Inverser partenaires
+              </button>
+            </div>
+          )}
         </section>
       )}
+
+      <ClubAccountGateCard
+        title="Connecte ton compte pour certifier tes parties au classement annuel"
+        compact
+      />
 
       {/* NOUVELLE PARTIE AU BAR */}
       <section className="card-ruled" aria-labelledby="new-casual-heading">

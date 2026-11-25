@@ -18,6 +18,7 @@ import {
   adminGeneratePoolsInStore,
   adminImportTeamsIntoStore,
   adminResetTournamentInStore,
+  adminUndoLastDealInStore,
   adminUpdateTeamDetailsInStore,
   broadcastLiveAnnouncementFromStore,
   formatPlayersPrimaryName,
@@ -815,6 +816,13 @@ export function AdminDashboardClient(props: AdminDashboardClientProps) {
             teams={state.teams}
             liveFeed={state.liveFeed}
             onForceUpdateMatch={handleForceUpdateMatch}
+            onUndoLastDeal={(matchId: string) => {
+              adminUndoLastDealInStore(matchId);
+              setFeedback({
+                message: "Dernière donne annulée et score recalculé.",
+                tone: "ok",
+              });
+            }}
             onPushLiveAnnouncement={handlePushLiveAnnouncement}
           />
         </div>

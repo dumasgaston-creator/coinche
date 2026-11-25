@@ -19,6 +19,7 @@ function buildContentSecurityPolicy(isProd: boolean): string {
     "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
     "font-src 'self' https://fonts.gstatic.com data:",
     "img-src 'self' data: blob: https://*.supabase.co",
+    "media-src 'self' data: blob: https://*.supabase.co",
     connectSrc,
     "frame-ancestors 'none'",
     "base-uri 'self'",

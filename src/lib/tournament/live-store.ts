@@ -1377,6 +1377,30 @@ export function submitTableAlertToStore(params: {
    Commandes Administrateur completes (modification totale par l'Admin)
    ========================================================================== */
 
+export function adminUndoLastDealInStore(
+  matchId: string,
+): UnifiedTournamentState {
+  return updateUnifiedTournamentState((state) => {
+    const updatedMatches = state.matches.map((match) => {
+      if (match.id !== matchId || match.deals.length === 0) {
+        return match;
+      }
+      const trimmedDeals = match.deals.slice(0, match.deals.length - 1);
+      return recomputeMatchFromDeals(
+        match,
+        trimmedDeals,
+        state.tournament.dealsPerPoolMatch,
+        "admin",
+      );
+    });
+
+    return autoAdvanceTournamentStage({
+      ...state,
+      matches: updatedMatches,
+    });
+  });
+}
+
 export function adminForceUpdateMatchInStore(params: {
   matchId: string;
   scoreTeamA: number;

@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import Link from "next/link";
+import { ClubAccountGateCard } from "@/components/auth/ClubAccountGateCard";
 import { normalizeComparisonKey } from "@/lib/security/sanitize";
 import {
   findUnifiedTeam,
@@ -381,6 +382,11 @@ export function EquipeView() {
   return (
     <div className="container-mobile">
       <div className="players-stack">
+        <ClubAccountGateCard
+          title="Mon compte Coinch'Eirb (pseudo + mot de passe)"
+          compact
+        />
+
         {/* Recherche instantanée par PRÉNOM */}
         <section className="card-ruled" aria-label="Trouver mon équipe par prénom">
           <label htmlFor="equipe-firstname-input" className="field-label">

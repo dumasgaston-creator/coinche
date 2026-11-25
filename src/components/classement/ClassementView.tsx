@@ -2,6 +2,10 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
+import { ClubAccountGateCard } from "@/components/auth/ClubAccountGateCard";
+import { useClubAccount } from "@/lib/auth/use-club-account";
+import { normalizeComparisonKey } from "@/lib/security/sanitize";
+import { downloadInstagramStoryPng } from "@/lib/classement/story-export";
 import {
   buildClassementDataset,
   type ClassementFullDataset,
@@ -428,6 +432,19 @@ export function ClassementView() {
   const staticFallback = useMemo(() => buildClassementDataset(), []);
   const { state, summary } = useTournamentStore();
   const { games: casualGames } = useCasualGamesStore();
+  const { verifiedPseudos } = useClubAccount();
+  const [onlyVerifiedAnnual, setOnlyVerifiedAnnual] = useState<boolean>(false);
+
+  const verifiedKeySet = useMemo(() => {
+    const s = new Set<string>();
+    for (const label of verifiedPseudos) {
+      const key = normalizeComparisonKey(label);
+      if (key.length >= 2) {
+        s.add(key);
+      }
+    }
+    return s;
+  }, [verifiedPseudos]);
 
   const liveAnnualLeaderboard = useMemo(
     () => computeCombinedAnnualLeaderboard(casualGames, state),
@@ -648,7 +665,46 @@ export function ClassementView() {
               disabled={isExporting}
               onClick={handleExportPng}
             >
-              Télécharger Planche PNG (2x)
+              Planche PNG (2x)
+            </button>
+
+            <button
+              type="button"
+              className="btn btn-secondary btn-sm"
+              style={{ minHeight: "40px" }}
+              disabled={isExporting}
+              onClick={() => {
+                setIsExporting(true);
+                setExportFeedback(null);
+                void downloadInstagramStoryPng({
+                  tournamentTitle: dataset.tournamentTitle,
+                  winnerNames: dataset.eveningStats.podium.winner.teamName,
+                  winnerPhotoUrl:
+                    state.tournament.winnerPhotoUrl ??
+                    "/assets/media/vainqueur-precedent.jpg",
+                  winnerScoreLabel:
+                    dataset.eveningStats.podium.winner.finalScore,
+                  finalistNames: dataset.eveningStats.podium.finalist.teamName,
+                  totalDeals: dataset.eveningStats.totalDealsPlayed,
+                  capotsPassed: dataset.eveningStats.capotsPassed,
+                  generalesPassed: dataset.eveningStats.generalesPassed,
+                  coinchesPassed: dataset.eveningStats.coinchesPassed,
+                  topPoolTeamName: dataset.eveningStats.highestPoolTeamName,
+                  topPoolTeamPoints:
+                    dataset.eveningStats.highestPoolTeamPoints,
+                })
+                  .then((res) => {
+                    setExportFeedback({
+                      ok: true,
+                      format: "PNG",
+                      filename: res.fileName,
+                      message: `Story Instagram 1080×1920 prête (${res.fileName}).`,
+                    });
+                  })
+                  .finally(() => setIsExporting(false));
+              }}
+            >
+              Story Insta (1080×1920)
             </button>
 
             <button
@@ -658,7 +714,7 @@ export function ClassementView() {
               disabled={isExporting}
               onClick={handleExportPdf}
             >
-              Télécharger Rapport PDF (A4)
+              Rapport PDF (A4)
             </button>
           </div>
 
@@ -1404,6 +1460,8 @@ export function ClassementView() {
           aria-label="Classement général annuel Coinch'Eirb"
           style={{ display: "flex", flexDirection: "column", gap: "14px" }}
         >
+          <ClubAccountGateCard />
+
           <div className="card-ruled">
             <div
               style={{
@@ -1416,7 +1474,7 @@ export function ClassementView() {
             >
               <div>
                 <span className="eyebrow">
-                  Tournois (×3) + Parties libres au BAR
+                  Comptes vérifiés · Tournois (×3) + Parties libres au BAR
                 </span>
                 <h2 className="section-title" style={{ marginTop: "4px" }}>
                   Classement Annuel +/- ({filteredLiveAnnual.length} joueurs)
@@ -1427,25 +1485,68 @@ export function ClassementView() {
                 <span>Compter une partie au BAR</span>
               </Link>
             </div>
+            <p
+              style={{
+                margin: "6px 0 0",
+                fontSize: "12.5px",
+                color: "var(--ink-secondary)",
+              }}
+            >
+              Seuls les joueurs connectés avec un compte protégé (pseudo + mot
+              de passe) verrouillent leur identité au classement annuel
+              officiel.
+            </p>
 
-            <div style={{ marginTop: "10px" }}>
+            <div
+              style={{
+                marginTop: "10px",
+                display: "flex",
+                gap: "8px",
+                flexWrap: "wrap",
+                alignItems: "center",
+              }}
+            >
               <input
                 id="annual-search"
                 type="search"
                 className="field-input"
+                style={{ flex: "1 1 200px" }}
                 placeholder="Rechercher un joueur (prénom ou nom)..."
                 value={annualSearch}
                 onChange={(e) => setAnnualSearch(e.target.value)}
               />
+              <button
+                type="button"
+                className="btn btn-sm btn-secondary"
+                onClick={() => setOnlyVerifiedAnnual((prev) => !prev)}
+              >
+                {onlyVerifiedAnnual && "Comptes vérifiés uniquement : ON"}
+                {!onlyVerifiedAnnual && "Tous (Vérifiés + Invités)"}
+              </button>
             </div>
           </div>
 
           <div className="annual-list">
-            {filteredLiveAnnual.map((player) => {
+            {filteredLiveAnnual
+              .filter((player) => {
+                if (!onlyVerifiedAnnual) {
+                  return true;
+                }
+                const firstToken = player.playerKey.split(" ")[0] ?? "";
+                return (
+                  verifiedKeySet.has(player.playerKey) ||
+                  verifiedKeySet.has(firstToken)
+                );
+              })
+              .map((player) => {
               let topAttr = "false";
               if (player.rank <= 3) {
                 topAttr = "true";
               }
+              const firstToken = player.playerKey.split(" ")[0] ?? "";
+              const isVerifiedAccount =
+                verifiedKeySet.has(player.playerKey) ||
+                verifiedKeySet.has(firstToken);
               let netBadgeClass = "badge badge-pass";
               let netPrefix = "+";
               if (player.netBalance < 0) {
@@ -1476,15 +1577,23 @@ export function ClassementView() {
                     >
                       <span className="pool-rank-num">#{player.rank}</span>
                       <div>
-                        <strong
-                          className="font-display"
-                          style={{
-                            fontSize: "20px",
-                            textTransform: "uppercase",
-                          }}
-                        >
-                          {player.displayName}
-                        </strong>
+                        <div style={{ display: "flex", alignItems: "center", gap: "6px", flexWrap: "wrap" }}>
+                          <strong
+                            className="font-display"
+                            style={{
+                              fontSize: "20px",
+                              textTransform: "uppercase",
+                            }}
+                          >
+                            {player.displayName}
+                          </strong>
+                          {isVerifiedAccount && (
+                            <span className="badge badge-pass">Vérifié</span>
+                          )}
+                          {!isVerifiedAccount && (
+                            <span className="badge badge-neutral">Invité</span>
+                          )}
+                        </div>
                         <div
                           style={{
                             fontSize: "12px",

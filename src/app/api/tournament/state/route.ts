@@ -6,6 +6,14 @@ import {
   requireAdmin,
 } from "@/lib/auth/guards";
 import {
+  getClubAccountFromCookie,
+  getTableScorerFromCookie,
+} from "@/lib/auth/session";
+import {
+  doesClubAccountPlayAtTable,
+  evaluateTableScorerAccess,
+} from "@/lib/auth/table-code";
+import {
   assertTrustedMutationOrigin,
   buildSafeErrorResponse,
   getHashedRequestClientKey,
@@ -14,6 +22,7 @@ import { checkServerRateLimit } from "@/lib/security/rate-limit";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import {
   createDefaultUnifiedTournamentState,
+  findUnifiedTeam,
   type UnifiedTournamentState,
 } from "@/lib/tournament/live-store-types";
 import {
@@ -314,6 +323,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     const optionalAuth = await getOptionalAuthenticatedProfile();
     const isAdminActor =
       optionalAuth !== null && optionalAuth.profile.role === "admin";
+    const clubAccountSession = await getClubAccountFromCookie();
+    const tableScorerCookie = await getTableScorerFromCookie();
 
     // Boucle de concurrence optimiste (3 tentatives) pour eviter toute perte de donne simultanee
     for (let attempt = 0; attempt < 3; attempt += 1) {
@@ -341,6 +352,90 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         currentLastEvent = existingRow.last_event_json ?? null;
         if (isValidUnifiedTournamentState(existingRow.state_json)) {
           baseState = existingRow.state_json;
+        }
+      }
+
+      // Verification serveur anti-troll (compte joueur a la table OU cookie marqueur signe)
+      let protectedMatchId: string | null = null;
+      if (
+        body.action === "record_deal" ||
+        body.action === "edit_deal" ||
+        body.action === "record_direct_score" ||
+        body.action === "broadcast_announcement"
+      ) {
+        protectedMatchId = body.payload.matchId;
+      } else if (
+        body.action === "submit_alert" &&
+        body.payload.applyImmediateForfeit
+      ) {
+        protectedMatchId = body.payload.matchId;
+      }
+
+      if (protectedMatchId !== null && !isAdminActor) {
+        const targetMatch = baseState.matches.find(
+          (m) => m.id === protectedMatchId,
+        );
+        if (targetMatch !== undefined) {
+          const teamA = findUnifiedTeam(baseState.teams, targetMatch.teamAId);
+          const teamB = findUnifiedTeam(baseState.teams, targetMatch.teamBId);
+          const tablePlayers: string[] = [];
+          if (teamA !== null) {
+            tablePlayers.push(teamA.player1Name, teamA.player2Name);
+          }
+          if (teamB !== null) {
+            tablePlayers.push(teamB.player1Name, teamB.player2Name);
+          }
+
+          let accountAtTable = false;
+          if (clubAccountSession !== null) {
+            accountAtTable = doesClubAccountPlayAtTable({
+              accountPseudo: clubAccountSession.pseudo,
+              accountFirstName: clubAccountSession.firstName,
+              tablePlayerNames: tablePlayers,
+            });
+          }
+
+          let activeLockHolderId: string | null = null;
+          let activeLockVersion = 1;
+          const { data: lockRow } = await adminClient
+            .from("table_scorer_locks")
+            .select("holder_id, lock_version")
+            .eq("match_id", protectedMatchId)
+            .maybeSingle();
+
+          if (lockRow !== null) {
+            const typedLock = lockRow as {
+              holder_id?: string;
+              lock_version?: number;
+            };
+            if (
+              typeof typedLock.holder_id === "string" &&
+              typedLock.holder_id !== "__released__"
+            ) {
+              activeLockHolderId = typedLock.holder_id;
+            }
+            if (typeof typedLock.lock_version === "number") {
+              activeLockVersion = typedLock.lock_version;
+            }
+          }
+
+          const scorerDecision = evaluateTableScorerAccess({
+            isAdmin: false,
+            accountPlayingAtTable: accountAtTable,
+            matchId: protectedMatchId,
+            cookieMatchId: tableScorerCookie?.matchId ?? null,
+            cookieHolderId: tableScorerCookie?.holderId ?? null,
+            cookieLockVersion: tableScorerCookie?.lockVersion ?? null,
+            activeLockHolderId,
+            activeLockVersion,
+          });
+
+          if (!scorerDecision.canEdit) {
+            return NextResponse.json(
+              { error: scorerDecision.reason },
+              { status: 403 },
+            );
+          }
         }
       }
 

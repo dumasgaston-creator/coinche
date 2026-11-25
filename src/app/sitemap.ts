@@ -25,6 +25,18 @@ export default function sitemap(): MetadataRoute.Sitemap {
       priority: 0.9,
     },
     {
+      url: `${baseUrl}/jouer`,
+      lastModified: now,
+      changeFrequency: "weekly",
+      priority: 0.88,
+    },
+    {
+      url: `${baseUrl}/memes`,
+      lastModified: now,
+      changeFrequency: "weekly",
+      priority: 0.82,
+    },
+    {
       url: `${baseUrl}/regles`,
       lastModified: now,
       changeFrequency: "monthly",
