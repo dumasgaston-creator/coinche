@@ -8,12 +8,19 @@ import {
 } from "@/components/admin/admin-demo-data";
 import type { AdminTournamentMeta } from "@/components/admin/admin-types";
 import {
+  BUILTIN_SOUND_PRESETS,
   clearCustomSound,
+  getEffectivePresetForSlot,
+  playBuiltinSoundPreset,
   playLiveSound,
   readCustomSounds,
+  readSoundPresetPrefs,
   saveCustomSound,
+  saveSoundPresetPref,
+  type BuiltinSoundPresetId,
   type CustomSoundsMap,
   type LiveSoundSlot,
+  type SoundPresetPrefsMap,
 } from "@/components/live/sound-engine";
 import type {
   PoolStandingSummary,
@@ -97,10 +104,12 @@ export function AdminPosterAndKnockoutPanel(
   const [winnerStatus, setWinnerStatus] = useState<string | null>(null);
 
   const [customSounds, setCustomSounds] = useState<CustomSoundsMap>({});
+  const [presetPrefs, setPresetPrefs] = useState<SoundPresetPrefsMap>({});
   const [soundNotice, setSoundNotice] = useState<string | null>(null);
 
   useEffect(() => {
     setCustomSounds(readCustomSounds());
+    setPresetPrefs(readSoundPresetPrefs());
   }, []);
 
   async function handlePosterFileChange(event: ChangeEvent<HTMLInputElement>) {
@@ -380,10 +389,10 @@ export function AdminPosterAndKnockoutPanel(
         <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
           {SOUND_SLOTS_META.map((item) => {
             const custom = customSounds[item.slot];
-            let subLabel = "Jingle intégré gratuit";
-            if (custom !== undefined) {
-              subLabel = `MP3 perso : ${custom.fileName}`;
-            }
+            const activePreset = getEffectivePresetForSlot(
+              item.slot,
+              presetPrefs,
+            );
 
             return (
               <div
@@ -392,52 +401,82 @@ export function AdminPosterAndKnockoutPanel(
                 style={{
                   padding: "8px 10px",
                   display: "flex",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                  gap: "8px",
-                  flexWrap: "wrap",
+                  flexDirection: "column",
+                  gap: "6px",
                 }}
               >
-                <div style={{ minWidth: 0 }}>
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    gap: "8px",
+                    flexWrap: "wrap",
+                  }}
+                >
                   <div style={{ fontSize: "12.5px", fontWeight: 700 }}>
                     {item.label}
                   </div>
-                  <div style={{ fontSize: "11px", color: "var(--ink-muted)" }}>
-                    {subLabel}
-                  </div>
-                </div>
-                <div style={{ display: "inline-flex", gap: "6px" }}>
-                  <button
-                    type="button"
-                    className="btn btn-sm btn-secondary"
-                    onClick={() => playLiveSound(item.slot, true)}
-                  >
-                    Écouter
-                  </button>
-                  <label
-                    className="btn btn-sm btn-secondary"
-                    htmlFor={`sound-upload-${item.slot}`}
-                    style={{ cursor: "pointer" }}
-                  >
-                    MP3
-                  </label>
-                  <input
-                    id={`sound-upload-${item.slot}`}
-                    type="file"
-                    accept="audio/mpeg,audio/wav,audio/ogg,audio/*"
-                    onChange={(e) => handleSoundFileUpload(item.slot, e)}
-                    style={{ display: "none" }}
-                  />
-                  {custom !== undefined && (
+                  <div style={{ display: "inline-flex", gap: "6px" }}>
                     <button
                       type="button"
-                      className="btn btn-sm btn-ghost-danger"
-                      onClick={() => setCustomSounds(clearCustomSound(item.slot))}
+                      className="btn btn-sm btn-secondary"
+                      onClick={() => playLiveSound(item.slot, true)}
                     >
-                      Reset
+                      Écouter
                     </button>
-                  )}
+                    <label
+                      className="btn btn-sm btn-secondary"
+                      htmlFor={`sound-upload-${item.slot}`}
+                      style={{ cursor: "pointer" }}
+                    >
+                      MP3
+                    </label>
+                    <input
+                      id={`sound-upload-${item.slot}`}
+                      type="file"
+                      accept="audio/mpeg,audio/wav,audio/ogg,audio/*"
+                      onChange={(e) => handleSoundFileUpload(item.slot, e)}
+                      style={{ display: "none" }}
+                    />
+                    {custom !== undefined && (
+                      <button
+                        type="button"
+                        className="btn btn-sm btn-ghost-danger"
+                        onClick={() =>
+                          setCustomSounds(clearCustomSound(item.slot))
+                        }
+                      >
+                        Reset
+                      </button>
+                    )}
+                  </div>
                 </div>
+
+                {custom === undefined && (
+                  <select
+                    aria-label={`Son brainrot pour ${item.label}`}
+                    className="admin-auth-input"
+                    value={activePreset}
+                    onChange={(e) => {
+                      const nextId = e.target.value as BuiltinSoundPresetId;
+                      setPresetPrefs(saveSoundPresetPref(item.slot, nextId));
+                      playBuiltinSoundPreset(nextId);
+                    }}
+                  >
+                    {BUILTIN_SOUND_PRESETS.map((preset) => (
+                      <option key={preset.id} value={preset.id}>
+                        {preset.label}
+                      </option>
+                    ))}
+                  </select>
+                )}
+
+                {custom !== undefined && (
+                  <div style={{ fontSize: "11px", color: "var(--status-pass)", fontWeight: 600 }}>
+                    MP3 actif : {custom.fileName}
+                  </div>
+                )}
               </div>
             );
           })}

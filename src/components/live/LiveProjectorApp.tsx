@@ -37,9 +37,80 @@ import {
 import { useTournamentStore } from "@/lib/tournament/use-tournament-store";
 import type { TournamentStatus } from "@/types/database";
 
-const SLIDE_DURATION_MS = 14000;
+const SLIDE_DURATION_MS = 16000;
+const POOL_WARMUP_FOCUS_MS = 20 * 60 * 1000;
+const POOL_START_TIME_KEY = "coincheirb-pools-started-at";
 const TICK_INTERVAL_MS = 100;
 const MAX_SEEN_KEYS = 200;
+
+/**
+ * Determine dynamiquement la boucle de vues pertinentes sur le videoprojecteur /live :
+ * - Avant 18h30 (`checkin` / `draft`) : Affiche uniquement
+ * - En poules (< 20 min apres debut ET < 50% de matchs finis) : Tables en cours + Poules uniquement
+ * - En poules (apres 20 min ou fin de poules proche) : Tables + Poules + Meilleurs 3es/4es
+ * - En phase finale (8es / Quarts / Demies / Finale) : UNIQUEMENT Arbre final + Tables en cours (fini les poules !)
+ * - Tournoi termine : Arbre final (Champions) + Affiche & Photo Vainqueurs.
+ */
+function resolveSmartRotationSlides(params: {
+  tournamentStatus: TournamentStatus;
+  hasRealKnockout: boolean;
+  poolCompletionRatio: number;
+  elapsedPoolMs: number;
+  hasWildcardRace: boolean;
+}): { slides: LiveSlideId[]; modeLabel: string } {
+  if (
+    params.tournamentStatus === "draft" ||
+    params.tournamentStatus === "checkin"
+  ) {
+    return {
+      slides: ["poster"],
+      modeLabel: "Avant 18h30 · Affiche",
+    };
+  }
+
+  if (params.tournamentStatus === "completed") {
+    return {
+      slides: ["bracket", "poster"],
+      modeLabel: "Podium & Vainqueurs",
+    };
+  }
+
+  if (
+    params.hasRealKnockout ||
+    params.tournamentStatus === "round_of_16" ||
+    params.tournamentStatus === "quarterfinals" ||
+    params.tournamentStatus === "semifinals" ||
+    params.tournamentStatus === "final"
+  ) {
+    return {
+      slides: ["bracket", "tables"],
+      modeLabel: "Phase finale · Arbre & Tables",
+    };
+  }
+
+  // Phase de poules : 20 premieres minutes = focus Tables + Poules uniquement
+  if (
+    params.elapsedPoolMs < POOL_WARMUP_FOCUS_MS &&
+    params.poolCompletionRatio < 0.5
+  ) {
+    return {
+      slides: ["tables", "pools"],
+      modeLabel: "Début poules (20 min) · Tables & Poules",
+    };
+  }
+
+  if (params.hasWildcardRace) {
+    return {
+      slides: ["tables", "pools", "best_fourths"],
+      modeLabel: "Fin de poules · Tables, Poules & Repêchage",
+    };
+  }
+
+  return {
+    slides: ["tables", "pools"],
+    modeLabel: "Poules · Tables & Classement",
+  };
+}
 
 function findSlideById(id: LiveSlideId): LiveSlideDefinition {
   for (const slide of LIVE_SLIDES) {
@@ -292,8 +363,29 @@ export function LiveProjectorApp() {
     useState<LiveTournamentSnapshot | null>(null);
   const [connectionMode, setConnectionMode] =
     useState<RealtimeConnectionMode>("demo");
-  const [activeSlideId, setActiveSlideId] = useState<LiveSlideId>("pools");
+  const [activeSlideId, setActiveSlideId] = useState<LiveSlideId>("tables");
   const [isPaused, setIsPaused] = useState<boolean>(false);
+  const [poolStartedAtMs, setPoolStartedAtMs] = useState<number>(() =>
+    Date.now(),
+  );
+
+  useEffect(() => {
+    try {
+      const savedStart = window.localStorage.getItem(POOL_START_TIME_KEY);
+      if (savedStart !== null) {
+        const parsed = Number.parseInt(savedStart, 10);
+        if (Number.isFinite(parsed) && parsed > 0) {
+          setPoolStartedAtMs(parsed);
+        }
+      } else {
+        const now = Date.now();
+        window.localStorage.setItem(POOL_START_TIME_KEY, String(now));
+        setPoolStartedAtMs(now);
+      }
+    } catch {
+      // Ignore
+    }
+  }, []);
 
   useEffect(() => {
     try {
@@ -405,19 +497,58 @@ export function LiveProjectorApp() {
     };
   }, [activeSlideId]);
 
-  const stepSlide = useCallback((direction: -1 | 1) => {
-    setActiveSlideId((currentId) => {
-      const currentSlide = findSlideById(currentId);
-      const total = LIVE_SLIDES.length;
-      const nextIdx = (currentSlide.index + direction + total) % total;
-      const nextSlide = LIVE_SLIDES[nextIdx] ?? LIVE_SLIDES[0];
-      if (nextSlide === undefined) {
-        return "pools";
-      }
-      return nextSlide.id;
+  const rotationConfig = useMemo(() => {
+    const poolMatches = storeState.matches.filter((m) => m.phase === "pool");
+    let poolRatio = 0;
+    if (poolMatches.length > 0) {
+      const finishedCount = poolMatches.filter(
+        (m) => m.status === "completed" || m.status === "forfeit",
+      ).length;
+      poolRatio = finishedCount / poolMatches.length;
+    }
+
+    return resolveSmartRotationSlides({
+      tournamentStatus: snapshot.tournamentStatus,
+      hasRealKnockout: storeSummary.hasRealKnockoutBracket,
+      poolCompletionRatio: poolRatio,
+      elapsedPoolMs: Math.max(0, Date.now() - poolStartedAtMs),
+      hasWildcardRace: snapshot.wildcardCandidates.length > 0,
     });
-    setElapsedMs(0);
-  }, []);
+  }, [
+    snapshot.tournamentStatus,
+    snapshot.wildcardCandidates.length,
+    storeState.matches,
+    storeSummary.hasRealKnockoutBracket,
+    poolStartedAtMs,
+  ]);
+
+  // Bascule automatiquement vers la vue pertinente si la phase change (ex. passage en 8es -> Arbre)
+  useEffect(() => {
+    if (!rotationConfig.slides.includes(activeSlideId)) {
+      const firstRelevant = rotationConfig.slides[0];
+      if (firstRelevant !== undefined) {
+        setActiveSlideId(firstRelevant);
+        setElapsedMs(0);
+      }
+    }
+  }, [rotationConfig.slides, activeSlideId]);
+
+  const stepSlide = useCallback(
+    (direction: -1 | 1) => {
+      const allowed = rotationConfig.slides;
+      setActiveSlideId((currentId) => {
+        const currentIdx = allowed.indexOf(currentId);
+        if (currentIdx === -1) {
+          return allowed[0] ?? "tables";
+        }
+        const nextIdx =
+          (currentIdx + direction + allowed.length) % allowed.length;
+        return allowed[nextIdx] ?? allowed[0] ?? "tables";
+      });
+      setElapsedMs(0);
+    },
+    [rotationConfig.slides],
+  );
 
   useEffect(() => {
     if (isPaused || activePopup !== null) {
@@ -624,11 +755,11 @@ export function LiveProjectorApp() {
     Math.round((elapsedMs / SLIDE_DURATION_MS) * 100),
   );
 
-  let rotationStateText = "Rotation auto · 14s";
+  let rotationStateText = `${rotationConfig.modeLabel} · 16s`;
   if (activePopup !== null) {
-    rotationStateText = "Annonce en cours";
+    rotationStateText = "Pop-up en direct";
   } else if (isPaused) {
-    rotationStateText = "Rotation en pause";
+    rotationStateText = `En pause · ${rotationConfig.modeLabel}`;
   }
 
   return (
