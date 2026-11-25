@@ -358,7 +358,11 @@ function buildLiveSnapshotFromUnifiedStore(
  * - File d'attente FIFO stricte pour les pop-ups GSAP (~4.5s chacun)
  */
 export function LiveProjectorApp() {
-  const { state: storeState, summary: storeSummary } = useTournamentStore();
+  const {
+    state: storeState,
+    summary: storeSummary,
+    syncMode,
+  } = useTournamentStore();
   const [supabaseSnapshot, setSupabaseSnapshot] =
     useState<LiveTournamentSnapshot | null>(null);
   const [connectionMode, setConnectionMode] =
@@ -762,12 +766,17 @@ export function LiveProjectorApp() {
     rotationStateText = `En pause · ${rotationConfig.modeLabel}`;
   }
 
+  let effectiveConnectionMode: RealtimeConnectionMode = connectionMode;
+  if (syncMode === "supabase") {
+    effectiveConnectionMode = "supabase";
+  }
+
   return (
     <div ref={rootRef} className="live-projector-root">
       <LiveTopBar
         activeSlideId={activeSlideId}
         phaseLabel={snapshot.phaseLabel}
-        connectionMode={connectionMode}
+        connectionMode={effectiveConnectionMode}
         isPaused={isPaused}
         isFullscreen={isFullscreen}
         soundEnabled={soundEnabled}
