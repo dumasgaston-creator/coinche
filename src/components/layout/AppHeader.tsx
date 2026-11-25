@@ -48,15 +48,15 @@ export function AppHeader() {
       <div className="app-header-inner">
         <Link href="/" className="brand-link" aria-label="Accueil Coinch'Eirb">
           <img
-            src="/assets/logo-coincheirb.jpg"
-            alt="Logo Coinch'Eirb"
-            width={34}
-            height={34}
+            src="/assets/media/logo-abeilles.jpg"
+            alt="Logo abeilles Coinch'Eirb"
+            width={36}
+            height={36}
             className="brand-logo"
           />
           <span className="brand-wordmark">
             <span className="brand-name">Coinch&apos;Eirb</span>
-            <span className="brand-sub">ENSEIRB-MATMECA</span>
+            <span className="brand-sub">ENSEIRB · BAR</span>
           </span>
         </Link>
 
