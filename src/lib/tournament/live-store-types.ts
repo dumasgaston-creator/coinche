@@ -265,7 +265,7 @@ const SEED_TEAMS_DATA: ReadonlyArray<{
   { shortCode: "D03", teamName: "Les Rois du Tapis", player1Name: "Guillaume Leclerc", player2Name: "Céline Barbier", promotionLabel: "2A Élec" },
   { shortCode: "D04", teamName: "Pique & Cœur", player1Name: "Adrien Schmitt", player2Name: "Marine Leroux", promotionLabel: "1A Télécoms" },
   { shortCode: "E01", teamName: "Les Quatre As", player1Name: "Mathieu Perrin", player2Name: "Eva Lemoine", promotionLabel: "3A Télécoms" },
-  { shortCode: "E02", teamName: "Foyer Enseirb", player1Name: "Benoît Lemaire", player2Name: "Élise Noel", promotionLabel: "2A Info" },
+  { shortCode: "E02", teamName: "BAR Enseirb", player1Name: "Benoît Lemaire", player2Name: "Élise Noel", promotionLabel: "2A Info" },
   { shortCode: "E03", teamName: "Les As du 9", player1Name: "Rémi Fontaine", player2Name: "Margaux Moulin", promotionLabel: "2A RSI" },
   { shortCode: "E04", teamName: "Impasse Maître", player1Name: "Damien Marchand", player2Name: "Lucie Prévost", promotionLabel: "1A Élec" },
 ];
@@ -342,7 +342,7 @@ function buildSeedTeams(
 function buildDefaultTournamentMeta(status: TournamentStatus, locked: boolean): UnifiedTournamentMeta {
   return {
     id: "00000000-0000-4000-8000-000000000001",
-    title: "Tournoi Coinch'Eirb · Foyer ENSEIRB-MATMECA",
+    title: "Tournoi Coinch'Eirb · BAR ENSEIRB-MATMECA",
     eventDate: "2026-11-26",
     eventDateLabel: "Jeudi 26 novembre 2026 · 18h30",
     startsAtLabel: "18h30",

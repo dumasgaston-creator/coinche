@@ -179,9 +179,22 @@ export function LivePopupOverlay(props: LivePopupOverlayProps) {
   const onCompleteRef = useRef(onComplete);
   onCompleteRef.current = onComplete;
 
+  const isVideoPopup = event.specialKind === "first_deal";
+
   useEffect(() => {
-    if (soundEnabled && event.specialKind !== "first_deal") {
+    if (soundEnabled && !isVideoPopup) {
       playLiveSound(resolveSoundSlot(event), true);
+    }
+
+    let holdSeconds: number | null = 5.6;
+    if (isVideoPopup) {
+      holdSeconds = null;
+    } else if (
+      event.specialKind === "elimination" ||
+      event.specialKind === "champion" ||
+      event.announcementType === "generale"
+    ) {
+      holdSeconds = 6.8;
     }
 
     const timeline = playLivePopupTimeline(
@@ -199,12 +212,23 @@ export function LivePopupOverlay(props: LivePopupOverlayProps) {
       () => {
         onCompleteRef.current();
       },
+      holdSeconds,
     );
+
+    let videoFallbackTimer: number | null = null;
+    if (isVideoPopup) {
+      videoFallbackTimer = window.setTimeout(() => {
+        onCompleteRef.current();
+      }, 45000);
+    }
 
     return () => {
       timeline.kill();
+      if (videoFallbackTimer !== null) {
+        window.clearTimeout(videoFallbackTimer);
+      }
     };
-  }, [event, soundEnabled]);
+  }, [event, soundEnabled, isVideoPopup]);
 
   const titleWord = getAnnouncementDisplayTitle(event.announcementType);
   let resolvedWinnerPhoto = "/assets/media/vainqueur-precedent.jpg";
@@ -318,6 +342,28 @@ export function LivePopupOverlay(props: LivePopupOverlayProps) {
                 playsInline
                 muted={!soundEnabled}
                 className="live-popup-media"
+                onTimeUpdate={(e) => {
+                  const vid = e.currentTarget;
+                  if (
+                    progressBarRef.current !== null &&
+                    Number.isFinite(vid.duration) &&
+                    vid.duration > 0
+                  ) {
+                    const remaining = Math.max(
+                      0,
+                      1 - vid.currentTime / vid.duration,
+                    );
+                    progressBarRef.current.style.transform = `scaleX(${remaining})`;
+                  }
+                }}
+                onEnded={() => {
+                  onCompleteRef.current();
+                }}
+                onError={() => {
+                  window.setTimeout(() => {
+                    onCompleteRef.current();
+                  }, 3000);
+                }}
               />
             )}
             {media.kind === "image" && (

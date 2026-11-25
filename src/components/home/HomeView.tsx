@@ -357,11 +357,11 @@ export function HomeView(props: HomeViewProps) {
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src="/assets/media/soiree-foyer-bar.jpg"
-            alt="Soirée coinche au Foyer de l'ENSEIRB-MATMECA"
+            alt="Soirée coinche au BAR de l'ENSEIRB-MATMECA"
             className="home-photo-img"
           />
           <figcaption className="home-photo-cap">
-            <span>Au Foyer</span>
+            <span>Au BAR</span>
           </figcaption>
         </figure>
 

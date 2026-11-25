@@ -1592,11 +1592,12 @@ export function ClassementView() {
               <div
                 style={{
                   width: "100%",
-                  height: "150px",
+                  height: "220px",
                   borderRadius: "8px",
                   overflow: "hidden",
                   marginBottom: "10px",
                   border: "1px solid var(--accent-amber)",
+                  backgroundColor: "#161210",
                 }}
               >
                 {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -1612,8 +1613,7 @@ export function ClassementView() {
                   style={{
                     width: "100%",
                     height: "100%",
-                    objectFit: "cover",
-                    objectPosition: "center 22%",
+                    objectFit: "contain",
                     display: "block",
                   }}
                 />

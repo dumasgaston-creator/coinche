@@ -362,10 +362,10 @@ export interface PopupChoreographyRefs {
 }
 
 /**
- * Choregraphie GSAP complete d'un pop-up temps reel (~4.5 secondes) :
+ * Choregraphie GSAP complete d'un pop-up temps reel :
+ * - Duree configurable (`holdDurationSeconds`, ex. 5.8s pour memes, ou `null` pour video jouee jusqu'au bout)
  * - Entree dramatique du voile + carte
  * - Impact elastique sur le badge & valeur de verdict
- * - Lueur semantique (ambre / vert passe / rouge chute)
  * - Decompte fluide sur la barre inferieure
  * - Sortie nette avant de depiler l'evenement FIFO suivant.
  */
@@ -373,6 +373,7 @@ export function playLivePopupTimeline(
   refs: PopupChoreographyRefs,
   variant: "announced" | "passed" | "failed",
   onComplete: () => void,
+  holdDurationSeconds: number | null = 5.8,
 ): LiveTimeline {
   let glowShadow = "0 0 0 1px rgba(232,166,40,0.45), 0 24px 70px rgba(232,166,40,0.22)";
   let restingShadow = "0 0 0 1px rgba(232,166,40,0.3), 0 18px 48px rgba(0,0,0,0.55)";
@@ -384,7 +385,12 @@ export function playLivePopupTimeline(
     restingShadow = "0 0 0 1px rgba(220,70,61,0.45), 0 18px 48px rgba(0,0,0,0.55)";
   }
 
-  const tl = gsapTimeline({ onComplete });
+  let tl: LiveTimeline;
+  if (holdDurationSeconds === null) {
+    tl = gsapTimeline();
+  } else {
+    tl = gsapTimeline({ onComplete });
+  }
 
   // 1. Entree du fond et de la carte principale (0.00s -> 0.48s)
   tl.fromTo(
@@ -437,7 +443,14 @@ export function playLivePopupTimeline(
       0.36,
     );
 
-  // 2. Pulsation de lueur ambre/verte/rouge a mi-parcours (0.9s -> 3.6s)
+  // Pour les pop-ups video, la sortie est pilotee par video.onEnded (100 % de la video jouee)
+  if (holdDurationSeconds === null) {
+    return tl.play();
+  }
+
+  const exitStartSec = Math.max(3.8, holdDurationSeconds - 0.4);
+
+  // 2. Pulsation de lueur ambre/verte/rouge
   tl.to(
     refs.card,
     { boxShadow: restingShadow, duration: 0.85, ease: GSAP_EASE.power4Out },
@@ -446,24 +459,24 @@ export function playLivePopupTimeline(
     .to(
       refs.card,
       { boxShadow: glowShadow, duration: 0.7, ease: GSAP_EASE.power4Out },
-      1.95,
+      2.1,
     )
     .to(
       refs.card,
       { boxShadow: restingShadow, duration: 0.7, ease: GSAP_EASE.power4Out },
-      2.75,
+      3.1,
     );
 
-  // 3. Barre de decompte lineaire sur 4.1s
+  // 3. Barre de decompte lineaire sur toute la duree d'affichage
   tl.fromTo(
     refs.progressBar,
     { scaleX: 1 },
-    { scaleX: 0, duration: 4.05, ease: GSAP_EASE.linear },
+    { scaleX: 0, duration: exitStartSec - 0.1, ease: GSAP_EASE.linear },
     0.1,
   );
 
-  // 4. Sortie rapide et propre (4.10s -> 4.50s)
-  tl.addLabel("exit", 4.1)
+  // 4. Sortie rapide et propre
+  tl.addLabel("exit", exitStartSec)
     .to(
       refs.card,
       {

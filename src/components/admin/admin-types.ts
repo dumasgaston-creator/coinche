@@ -144,7 +144,7 @@ const INITIAL_TEAM_SEED: Array<{
   { teamName: "Les Rois du Tapis", player1Name: "Guillaume Leclerc", player2Name: "Céline Barbier" },
   { teamName: "Pique & Cœur", player1Name: "Adrien Schmitt", player2Name: "Marine Leroux" },
   { teamName: "Coinche Nocturne", player1Name: "Damien Bourgeois", player2Name: "Laura Dupuy" },
-  { teamName: "Foyer Enseirb", player1Name: "Benoît Lemaire", player2Name: "Élise Noel" },
+  { teamName: "BAR Enseirb", player1Name: "Benoît Lemaire", player2Name: "Élise Noel" },
   { teamName: "Les As du 9", player1Name: "Rémi Fontaine", player2Name: "Margaux Moulin" },
   { teamName: "Impasse Maitre", player1Name: "Théo Marchand", player2Name: "Lucie Prévost" },
 ];
@@ -168,7 +168,7 @@ export function buildInitialDemoTeams(): TournamentTeamInput[] {
 export function buildInitialTournamentMeta(): AdminTournamentMeta {
   return {
     id: "00000000-0000-4000-8000-000000000001",
-    title: "Tournoi Coinch'Eirb · Soirée Foyer ENSEIRB-MATMECA",
+    title: "Tournoi Coinch'Eirb · Soirée BAR ENSEIRB-MATMECA",
     eventDate: "2026-11-26",
     startsAtLabel: "18h30",
     schoolYear: "2026-2027",
