@@ -1,0 +1,679 @@
+/* ==========================================================================
+   Coinch'Eirb · Poste de Pilotage Administrateur (/admin)
+   Direction artistique : papier cartonné #F7F2E8 / ardoise #161210, ambre #E8A628,
+   terre cuite #A64622, vert #2D7D4E, rouge #C8342B. Zéro dégradé néon.
+   ========================================================================== */
+
+.admin-shell {
+  width: 100%;
+  max-width: 1440px;
+  margin: 0 auto;
+  padding: 16px 16px 36px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* Bannière Authentification & Statut Synchronisation */
+.admin-auth-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 14px;
+  border-radius: var(--radius-card);
+  background-color: var(--bg-surface);
+  border: 1px solid var(--border-strong);
+}
+
+.admin-auth-status {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.admin-status-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background-color: var(--accent-amber);
+  flex-shrink: 0;
+}
+
+.admin-status-dot[data-authenticated="true"] {
+  background-color: var(--status-pass);
+}
+
+.admin-auth-form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.admin-auth-input {
+  height: 36px;
+  min-width: 170px;
+  padding: 0 10px;
+  border-radius: var(--radius-control);
+  border: 1px solid var(--border-strong);
+  background-color: var(--bg-surface-alt);
+  color: var(--ink-primary);
+  font-size: 13px;
+}
+
+.admin-auth-input:focus {
+  outline: none;
+  border-color: var(--accent-amber);
+}
+
+/* Bandeau de Contrôle Supérieur */
+.admin-command-bar {
+  background-color: var(--bg-surface);
+  border: 1px solid var(--border-strong);
+  border-top: 4px solid var(--accent-amber);
+  border-radius: var(--radius-card);
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.admin-command-top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.admin-title-block {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.admin-main-title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: clamp(26px, 3vw, 34px);
+  line-height: 1;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--ink-primary);
+}
+
+.admin-subtitle {
+  margin: 0;
+  font-size: 13px;
+  color: var(--ink-secondary);
+}
+
+/* Rail des phases du tournoi */
+.admin-phase-rail {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.admin-phase-step {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border-radius: var(--radius-tag);
+  border: 1px solid var(--border-subtle);
+  background-color: var(--bg-surface-alt);
+  color: var(--ink-secondary);
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 13px;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.admin-phase-step[data-current="true"] {
+  background-color: var(--accent-amber);
+  color: var(--accent-amber-ink);
+  border-color: var(--accent-amber-hover);
+}
+
+/* Barre d'actions maîtresses */
+.admin-command-actions {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 10px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border-subtle);
+}
+
+.admin-lock-toggle-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 14px;
+  border-radius: var(--radius-control);
+  border: 1px solid var(--border-strong);
+  background-color: var(--bg-surface-alt);
+}
+
+.admin-lock-toggle-card[data-locked="true"] {
+  background-color: var(--status-fail-soft);
+  border-color: var(--status-fail);
+}
+
+.admin-lock-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.admin-lock-title {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 16px;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.admin-lock-desc {
+  font-size: 12px;
+  color: var(--ink-secondary);
+}
+
+.admin-primary-triggers {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+/* Bandeau de retour d'action */
+.admin-feedback-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 14px;
+  border-radius: var(--radius-control);
+  border: 1px solid var(--status-pass);
+  background-color: var(--status-pass-soft);
+  color: var(--ink-primary);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.admin-feedback-banner[data-tone="error"] {
+  border-color: var(--status-fail);
+  background-color: var(--status-fail-soft);
+  color: var(--status-fail);
+}
+
+/* Grille Cockpit Desktop (3 colonnes sur grand écran, 1 colonne sur mobile) */
+.admin-cockpit-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 16px;
+  align-items: start;
+}
+
+.admin-col {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+}
+
+/* Panneaux modulaires */
+.admin-panel {
+  background-color: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-card);
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.admin-panel-alert {
+  border-color: var(--status-fail);
+  border-top: 4px solid var(--status-fail);
+}
+
+.admin-panel-amber {
+  border-color: var(--border-strong);
+  border-top: 3px solid var(--accent-amber);
+}
+
+.admin-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.admin-panel-title-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.admin-panel-title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 20px;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--ink-primary);
+}
+
+.admin-panel-subtitle {
+  margin: 0;
+  font-size: 12.5px;
+  color: var(--ink-secondary);
+}
+
+/* File d'Alertes Arbitre & Abandons */
+.admin-alerts-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.admin-alert-card {
+  padding: 12px;
+  border-radius: var(--radius-control);
+  border: 1px solid var(--border-strong);
+  background-color: var(--bg-surface-alt);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.admin-alert-card[data-type="abandon_request"] {
+  border-left: 4px solid var(--status-fail);
+}
+
+.admin-alert-card[data-type="referee_call"] {
+  border-left: 4px solid var(--accent-terracotta);
+}
+
+.admin-alert-card[data-status="resolved"] {
+  opacity: 0.65;
+}
+
+.admin-alert-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.admin-alert-table {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 18px;
+  text-transform: uppercase;
+  font-variant-numeric: tabular-nums;
+}
+
+.admin-alert-msg {
+  margin: 0;
+  font-size: 13px;
+  color: var(--ink-primary);
+}
+
+.admin-alert-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+/* Grille des Tables en Direct */
+.admin-tables-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.admin-filter-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.admin-filter-pill {
+  min-height: 34px;
+  padding: 0 10px;
+  border-radius: var(--radius-tag);
+  border: 1px solid var(--border-strong);
+  background-color: var(--bg-surface-alt);
+  color: var(--ink-secondary);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.admin-filter-pill[data-active="true"] {
+  background-color: var(--accent-amber);
+  color: var(--accent-amber-ink);
+  border-color: var(--accent-amber-hover);
+}
+
+.admin-tables-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  gap: 10px;
+  max-height: 540px;
+  overflow-y: auto;
+  padding-right: 2px;
+}
+
+.admin-table-card {
+  background-color: var(--bg-surface-alt);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-control);
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  transition: border-color 120ms ease;
+}
+
+.admin-table-card[data-selected="true"] {
+  border: 2px solid var(--accent-amber);
+  background-color: var(--accent-amber-soft);
+}
+
+.admin-table-card[data-locked="true"] {
+  border-color: var(--accent-terracotta);
+}
+
+.admin-table-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.admin-table-num {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 18px;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  font-variant-numeric: tabular-nums;
+}
+
+.admin-table-teams {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.admin-table-team-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: 6px;
+  background-color: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+}
+
+.admin-table-team-row[data-winner="true"] {
+  border-color: var(--status-pass);
+}
+
+.admin-table-team-name {
+  font-weight: 700;
+  font-size: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.admin-table-team-score {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 22px;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.admin-table-card-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 11.5px;
+  color: var(--ink-secondary);
+}
+
+/* Panneau d'édition forcée Admin */
+.admin-override-box {
+  padding: 14px;
+  border-radius: var(--radius-control);
+  border: 2px solid var(--accent-amber);
+  background-color: var(--bg-surface-alt);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.admin-override-scores {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.admin-override-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.admin-override-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+/* Module Check-in & Import Google Sheets */
+.admin-import-tabs {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.admin-textarea {
+  width: 100%;
+  min-height: 110px;
+  padding: 10px;
+  border-radius: var(--radius-control);
+  border: 1px solid var(--border-strong);
+  background-color: var(--bg-surface-alt);
+  color: var(--ink-primary);
+  font-family: monospace;
+  font-size: 12.5px;
+  line-height: 1.4;
+  resize: vertical;
+}
+
+.admin-textarea:focus {
+  outline: none;
+  border-color: var(--accent-amber);
+}
+
+.admin-import-Diagnostics {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.admin-diagnostic-box {
+  padding: 10px 12px;
+  border-radius: var(--radius-control);
+  font-size: 12.5px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.admin-diagnostic-warn {
+  background-color: var(--accent-terracotta-soft);
+  border: 1px solid var(--accent-terracotta);
+  color: var(--ink-primary);
+}
+
+.admin-diagnostic-err {
+  background-color: var(--status-fail-soft);
+  border: 1px solid var(--status-fail);
+  color: var(--status-fail);
+}
+
+.admin-checkin-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.admin-checkin-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 320px;
+  overflow-y: auto;
+  padding-right: 2px;
+}
+
+.admin-checkin-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: var(--radius-control);
+  border: 1px solid var(--border-subtle);
+  background-color: var(--bg-surface-alt);
+}
+
+.admin-checkin-row[data-checked="true"] {
+  border-color: var(--status-pass);
+}
+
+.admin-checkin-row[data-forfeit="true"] {
+  opacity: 0.55;
+  border-color: var(--status-fail);
+}
+
+.admin-checkin-team {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.admin-checkin-name {
+  font-weight: 700;
+  font-size: 13.5px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.admin-checkin-players {
+  font-size: 11.5px;
+  color: var(--ink-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.admin-manual-add-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 8px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border-subtle);
+}
+
+/* Upload Affiche & Qualification */
+.admin-poster-preview-grid {
+  display: grid;
+  grid-template-columns: 110px 1fr;
+  gap: 12px;
+  align-items: start;
+}
+
+.admin-poster-thumb {
+  width: 110px;
+  aspect-ratio: 1 / 1;
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid var(--border-strong);
+  background-color: #161210;
+}
+
+.admin-poster-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.admin-qualif-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 290px;
+  overflow-y: auto;
+}
+
+.admin-seed-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 10px;
+  border-radius: 6px;
+  background-color: var(--bg-surface-alt);
+  border: 1px solid var(--border-subtle);
+  font-size: 12.5px;
+}
+
+.admin-seed-num {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 15px;
+  font-variant-numeric: tabular-nums;
+  color: var(--accent-terracotta);
+}
+
+/* Responsive Desktop Cockpit */
+@media (min-width: 768px) {
+  .admin-command-actions {
+    grid-template-columns: 340px 1fr;
+    align-items: center;
+  }
+
+  .admin-manual-add-grid {
+    grid-template-columns: 1fr 1fr 1fr auto;
+  }
+}
+
+@media (min-width: 1140px) {
+  .admin-cockpit-grid {
+    grid-template-columns: 350px 1fr 370px;
+  }
+}

@@ -1,0 +1,283 @@
+import "server-only";
+import crypto from "node:crypto";
+import { cookies } from "next/headers";
+import { z } from "zod";
+import { isProductionEnvironment } from "@/lib/env/server";
+
+export const TEAM_SESSION_COOKIE_NAME = "coincheirb_team_session";
+export const ADMIN_SESSION_COOKIE_NAME = "coincheirb_admin_session";
+
+const DEFAULT_TEAM_SESSION_TTL_SECONDS = 16 * 60 * 60; // 16 heures
+const DEFAULT_ADMIN_SESSION_TTL_SECONDS = 12 * 60 * 60; // 12 heures
+
+const teamSessionPayloadSchema = z.object({
+  teamId: z.string().uuid(),
+  tournamentId: z.string().uuid(),
+  issuedAt: z.number().int().positive(),
+  expiresAt: z.number().int().positive(),
+});
+
+const adminSessionPayloadSchema = z.object({
+  adminId: z.string().min(3).max(80),
+  displayName: z.string().min(2).max(60),
+  role: z.literal("admin"),
+  issuedAt: z.number().int().positive(),
+  expiresAt: z.number().int().positive(),
+});
+
+export type TeamSessionPayload = z.infer<typeof teamSessionPayloadSchema>;
+export type AdminSessionPayload = z.infer<typeof adminSessionPayloadSchema>;
+
+/**
+ * Retourne le secret HMAC serveur (>= 32 caracteres).
+ * En production, exige strictement `SESSION_HMAC_SECRET`.
+ * En developpement local sans `.env.local`, derive une cle locale deterministe cote serveur uniquement.
+ */
+export function resolveServerHmacSecret(): string {
+  const configured = process.env.SESSION_HMAC_SECRET;
+  if (
+    configured !== undefined &&
+    configured.length >= 32 &&
+    !configured.includes("replace-with-at-least-32")
+  ) {
+    return configured;
+  }
+
+  if (isProductionEnvironment()) {
+    throw new Error(
+      "SESSION_HMAC_SECRET d'au moins 32 caracteres requis en production.",
+    );
+  }
+
+  return crypto
+    .createHash("sha256")
+    .update(`coincheirb-dev-only-hmac-secret:${process.cwd()}`)
+    .digest("hex");
+}
+
+function signPayloadBase64Url(payloadB64: string, secret: string): string {
+  return crypto
+    .createHmac("sha256", secret)
+    .update(payloadB64)
+    .digest("base64url");
+}
+
+function verifySignedRawPayload(token: string, secret: string): unknown | null {
+  const parts = token.split(".");
+  if (parts.length !== 2) {
+    return null;
+  }
+
+  const payloadB64 = parts[0];
+  const providedSig = parts[1];
+  if (payloadB64 === undefined || providedSig === undefined) {
+    return null;
+  }
+
+  const expectedSig = signPayloadBase64Url(payloadB64, secret);
+  const providedBuf = Buffer.from(providedSig, "utf8");
+  const expectedBuf = Buffer.from(expectedSig, "utf8");
+
+  if (providedBuf.byteLength !== expectedBuf.byteLength) {
+    return null;
+  }
+
+  if (!crypto.timingSafeEqual(providedBuf, expectedBuf)) {
+    return null;
+  }
+
+  try {
+    const decodedJson = Buffer.from(payloadB64, "base64url").toString("utf8");
+    return JSON.parse(decodedJson) as unknown;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Encode et signe un jeton de session d'equipe avec HMAC-SHA256 cote serveur.
+ */
+export function createSignedTeamSessionToken(
+  input: { teamId: string; tournamentId: string },
+  secret: string,
+  nowMs: number = Date.now(),
+  ttlSeconds: number = DEFAULT_TEAM_SESSION_TTL_SECONDS,
+): string {
+  const payload: TeamSessionPayload = {
+    teamId: input.teamId,
+    tournamentId: input.tournamentId,
+    issuedAt: Math.floor(nowMs / 1000),
+    expiresAt: Math.floor(nowMs / 1000) + ttlSeconds,
+  };
+
+  const payloadB64 = Buffer.from(JSON.stringify(payload), "utf8").toString(
+    "base64url",
+  );
+  const signature = signPayloadBase64Url(payloadB64, secret);
+  return `${payloadB64}.${signature}`;
+}
+
+/**
+ * Verifie en temps constant la signature HMAC et la date d'expiration d'un jeton d'equipe.
+ */
+export function verifySignedTeamSessionToken(
+  token: string,
+  secret: string,
+  nowMs: number = Date.now(),
+): TeamSessionPayload | null {
+  const decoded = verifySignedRawPayload(token, secret);
+  if (decoded === null) {
+    return null;
+  }
+
+  const parsed = teamSessionPayloadSchema.safeParse(decoded);
+  if (!parsed.success) {
+    return null;
+  }
+
+  const nowSec = Math.floor(nowMs / 1000);
+  if (parsed.data.expiresAt <= nowSec) {
+    return null;
+  }
+
+  return parsed.data;
+}
+
+/**
+ * Encode et signe un jeton de session Administrateur avec HMAC-SHA256 cote serveur.
+ */
+export function createSignedAdminSessionToken(
+  input: { adminId: string; displayName: string },
+  secret: string,
+  nowMs: number = Date.now(),
+  ttlSeconds: number = DEFAULT_ADMIN_SESSION_TTL_SECONDS,
+): string {
+  const payload: AdminSessionPayload = {
+    adminId: input.adminId,
+    displayName: input.displayName,
+    role: "admin",
+    issuedAt: Math.floor(nowMs / 1000),
+    expiresAt: Math.floor(nowMs / 1000) + ttlSeconds,
+  };
+
+  const payloadB64 = Buffer.from(JSON.stringify(payload), "utf8").toString(
+    "base64url",
+  );
+  const signature = signPayloadBase64Url(payloadB64, secret);
+  return `${payloadB64}.${signature}`;
+}
+
+/**
+ * Verifie en temps constant la signature HMAC et l'expiration d'un jeton Administrateur.
+ */
+export function verifySignedAdminSessionToken(
+  token: string,
+  secret: string,
+  nowMs: number = Date.now(),
+): AdminSessionPayload | null {
+  const decoded = verifySignedRawPayload(token, secret);
+  if (decoded === null) {
+    return null;
+  }
+
+  const parsed = adminSessionPayloadSchema.safeParse(decoded);
+  if (!parsed.success) {
+    return null;
+  }
+
+  const nowSec = Math.floor(nowMs / 1000);
+  if (parsed.data.expiresAt <= nowSec) {
+    return null;
+  }
+
+  return parsed.data;
+}
+
+export async function setTeamSessionCookie(input: {
+  teamId: string;
+  tournamentId: string;
+}): Promise<void> {
+  const secret = resolveServerHmacSecret();
+  const token = createSignedTeamSessionToken(input, secret);
+  const cookieStore = await cookies();
+
+  cookieStore.set(TEAM_SESSION_COOKIE_NAME, token, {
+    httpOnly: true,
+    secure: isProductionEnvironment(),
+    sameSite: "lax",
+    path: "/",
+    maxAge: DEFAULT_TEAM_SESSION_TTL_SECONDS,
+  });
+}
+
+export async function getTeamSessionFromCookie(): Promise<TeamSessionPayload | null> {
+  const cookieStore = await cookies();
+  const rawCookie = cookieStore.get(TEAM_SESSION_COOKIE_NAME);
+  if (rawCookie === undefined || rawCookie.value.trim() === "") {
+    return null;
+  }
+
+  try {
+    const secret = resolveServerHmacSecret();
+    return verifySignedTeamSessionToken(rawCookie.value, secret);
+  } catch {
+    return null;
+  }
+}
+
+export async function clearTeamSessionCookie(): Promise<void> {
+  const cookieStore = await cookies();
+  cookieStore.set(TEAM_SESSION_COOKIE_NAME, "", {
+    httpOnly: true,
+    secure: isProductionEnvironment(),
+    sameSite: "lax",
+    path: "/",
+    maxAge: 0,
+  });
+}
+
+/**
+ * Depose le cookie de session Administrateur en `httpOnly`, `secure` (prod) et `sameSite=strict`.
+ */
+export async function setAdminSessionCookie(input: {
+  adminId: string;
+  displayName: string;
+}): Promise<void> {
+  const secret = resolveServerHmacSecret();
+  const token = createSignedAdminSessionToken(input, secret);
+  const cookieStore = await cookies();
+
+  cookieStore.set(ADMIN_SESSION_COOKIE_NAME, token, {
+    httpOnly: true,
+    secure: isProductionEnvironment(),
+    sameSite: "strict",
+    path: "/",
+    maxAge: DEFAULT_ADMIN_SESSION_TTL_SECONDS,
+  });
+}
+
+export async function getAdminSessionFromCookie(): Promise<AdminSessionPayload | null> {
+  const cookieStore = await cookies();
+  const rawCookie = cookieStore.get(ADMIN_SESSION_COOKIE_NAME);
+  if (rawCookie === undefined || rawCookie.value.trim() === "") {
+    return null;
+  }
+
+  try {
+    const secret = resolveServerHmacSecret();
+    return verifySignedAdminSessionToken(rawCookie.value, secret);
+  } catch {
+    return null;
+  }
+}
+
+export async function clearAdminSessionCookie(): Promise<void> {
+  const cookieStore = await cookies();
+  cookieStore.set(ADMIN_SESSION_COOKIE_NAME, "", {
+    httpOnly: true,
+    secure: isProductionEnvironment(),
+    sameSite: "strict",
+    path: "/",
+    maxAge: 0,
+  });
+}

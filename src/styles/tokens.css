@@ -1,0 +1,115 @@
+/* ==========================================================================
+   Coinch'Eirb · Design System Tokens
+   Palette extraite du logo abeille Coinch'Eirb (ENSEIRB-MATMECA)
+   Mode clair papier cartonné par défaut sur mobile ; mode sombre chaud.
+   ========================================================================== */
+
+:root,
+[data-theme="light"] {
+  /* Surfaces & fonds */
+  --bg-page: #f7f2e8;
+  --bg-surface: #fffdf8;
+  --bg-surface-alt: #efe8da;
+  --bg-surface-pressed: #e5dcc9;
+  --bg-header: rgba(247, 242, 232, 0.94);
+  --bg-nav: rgba(255, 253, 248, 0.96);
+  --bg-overlay: rgba(22, 18, 16, 0.62);
+
+  /* Encre & textes (contraste WCAG AAA sur #F7F2E8 / #FFFDF8) */
+  --ink-primary: #1c1612;
+  --ink-secondary: #594d43;
+  --ink-muted: #76685c;
+  --ink-inverse: #fffdf8;
+
+  /* Filets & bordures */
+  --border-subtle: #dfd4c0;
+  --border-strong: #c2b296;
+  --border-ink: #1c1612;
+
+  /* Accents marque Coinch'Eirb */
+  --accent-amber: #e8a628;
+  --accent-amber-hover: #d4931c;
+  --accent-amber-soft: #fbf0d5;
+  --accent-amber-ink: #161210;
+
+  --accent-terracotta: #a64622;
+  --accent-terracotta-hover: #8f3a1a;
+  --accent-terracotta-soft: #f7e4dc;
+  --accent-terracotta-ink: #fffdf8;
+
+  /* Sémantique jeu */
+  --status-pass: #2d7d4e;
+  --status-pass-hover: #246740;
+  --status-pass-soft: #e3f2e9;
+  --status-pass-ink: #ffffff;
+
+  --status-fail: #c8342b;
+  --status-fail-hover: #ab2921;
+  --status-fail-soft: #fbe8e6;
+  --status-fail-ink: #ffffff;
+
+  /* Motif tapis feutre discret (logo) */
+  --felt-bg: #1e261f;
+  --felt-border: #334035;
+  --felt-ink: #f7f2e8;
+
+  /* Rayons différenciés par hiérarchie */
+  --radius-tag: 4px;
+  --radius-control: 10px;
+  --radius-card: 14px;
+  --radius-modal: 16px;
+  --radius-pill: 999px;
+
+  /* Typographie */
+  --font-display: "Barlow Condensed", "Arial Narrow", sans-serif;
+  --font-sans: "Plus Jakarta Sans", -apple-system, BlinkMacSystemFont, sans-serif;
+
+  /* Rythme & dimensions */
+  --header-height: 58px;
+  --nav-height: 66px;
+  --container-mobile: 520px;
+  --container-desktop: 1080px;
+}
+
+[data-theme="dark"] {
+  --bg-page: #161210;
+  --bg-surface: #221b17;
+  --bg-surface-alt: #2b231e;
+  --bg-surface-pressed: #362c26;
+  --bg-header: rgba(22, 18, 16, 0.94);
+  --bg-nav: rgba(34, 27, 23, 0.96);
+  --bg-overlay: rgba(8, 6, 5, 0.78);
+
+  --ink-primary: #f7f2e8;
+  --ink-secondary: #cbbeb0;
+  --ink-muted: #9a8c7e;
+  --ink-inverse: #161210;
+
+  --border-subtle: #382e27;
+  --border-strong: #524339;
+  --border-ink: #e8a628;
+
+  --accent-amber: #e8a628;
+  --accent-amber-hover: #f2b740;
+  --accent-amber-soft: #3a2d15;
+  --accent-amber-ink: #161210;
+
+  --accent-terracotta: #c45932;
+  --accent-terracotta-hover: #d46840;
+  --accent-terracotta-soft: #3b2016;
+  --accent-terracotta-ink: #fffdf8;
+
+  --status-pass: #389960;
+  --status-pass-hover: #2d7d4e;
+  --status-pass-soft: #173022;
+  --status-pass-ink: #ffffff;
+
+  --status-fail: #dc463d;
+  --status-fail-hover: #c8342b;
+  --status-fail-soft: #3a1816;
+  --status-fail-ink: #ffffff;
+
+  --felt-bg: #171f18;
+  --felt-border: #2c3a2e;
+  --felt-ink: #f7f2e8;
+}
