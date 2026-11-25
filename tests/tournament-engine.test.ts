@@ -4,6 +4,7 @@ import {
   computeEffectiveContractThreshold,
   computeOptimalPoolSizes,
   computePoolStandings,
+  describeQualificationFormula,
   determineKnockoutFormat,
   evaluateMatchProgress,
   generateKnockoutBracket,
@@ -354,6 +355,52 @@ describe("Departage par poule la plus forte, 20 equipes -> 16 qualifies, et seui
     expect(qfMatches[0]?.targetScore).toBe(600);
     expect(sfMatches[0]?.targetScore).toBe(700);
     expect(finalMatches[0]?.targetScore).toBe(1000);
+  });
+
+  it("gere dynamiquement 22 et 24 equipes en selectionnant les 4 meilleurs 3es pour les Huitiemes (16 max)", () => {
+    const formula24 = describeQualificationFormula(24, 12);
+    expect(formula24?.poolCount).toBe(6);
+    expect(formula24?.directTopRank).toBe(2);
+    expect(formula24?.wildcardRank).toBe(3);
+    expect(formula24?.wildcardCount).toBe(4);
+    expect(formula24?.qualifierCount).toBe(16);
+
+    const teams24 = buildMockTeams(24);
+    const plan24 = generatePoolsAndSchedule(teams24);
+    expect(plan24.pools).toHaveLength(6);
+    expect(plan24.pools.map((p) => p.size)).toEqual([4, 4, 4, 4, 4, 4]);
+
+    const standings24 = computePoolStandings(plan24.pools, teams24, []);
+    const outcome24 = resolvePoolQualifications(standings24, 12);
+    expect(outcome24.format.startingPhase).toBe("round_of_16");
+    expect(outcome24.qualifiedTeams).toHaveLength(16);
+    expect(outcome24.eliminatedTeams).toHaveLength(8);
+    expect(outcome24.wildcardRank).toBe(3);
+    expect(
+      outcome24.qualifiedTeams.filter(
+        (q) => q.qualificationReason === "best_wildcards",
+      ),
+    ).toHaveLength(4);
+
+    // Verification sur toute la plage d'effectifs reels (8, 12, 16, 18, 20, 21, 22, 23, 24, 28, 32)
+    for (const count of [8, 12, 16, 18, 20, 21, 22, 23, 24, 28, 32]) {
+      const f = describeQualificationFormula(count, 12);
+      expect(f).not.toBeNull();
+      expect(f?.qualifierCount).toBeLessThanOrEqual(16);
+      const mock = buildMockTeams(count);
+      const plan = generatePoolsAndSchedule(mock);
+      const st = computePoolStandings(plan.pools, mock, []);
+      const out = resolvePoolQualifications(st, 12);
+      expect(out.qualifiedTeams.length).toBe(f?.qualifierCount);
+    }
+
+    // Verification specifique sur 23 equipes (5 poules de 4 + 1 poule de 3 -> Top 2 + 4 meilleurs 3es -> 16 en 8es)
+    const formula23 = describeQualificationFormula(23, 12);
+    expect(formula23?.poolSizes).toEqual([4, 4, 4, 4, 4, 3]);
+    expect(formula23?.directTopRank).toBe(2);
+    expect(formula23?.wildcardRank).toBe(3);
+    expect(formula23?.wildcardCount).toBe(4);
+    expect(formula23?.qualifierCount).toBe(16);
   });
 });
 

@@ -7,6 +7,8 @@ import { CheckIcon, TrophyIcon } from "@/components/icons/Icons";
 interface BestFourthsViewProps {
   candidates: QualifiedTeamSeed[];
   wildcardSlotsAvailable: number;
+  wildcardRank?: number | null;
+  directTopRank?: number;
   teamDisplayById?: Record<string, LiveTeamDisplayInfo>;
 }
 
@@ -23,10 +25,16 @@ function formatSignedDiff(value: number): string {
  * qui departage automatiquement toute egalite parfaite.
  */
 export function BestFourthsView(props: BestFourthsViewProps) {
+  const wildcardRankNum = props.wildcardRank ?? 4;
+  const directTop = props.directTopRank ?? 3;
+
   if (props.candidates.length === 0) {
     return (
       <section className="live-empty-panel">
-        <p>Classement comparatif des 4es disponible dès la phase de poules.</p>
+        <p>
+          Qualification directe par poule (aucun repêchage de meilleurs{" "}
+          {wildcardRankNum}es nécessaire pour cet effectif).
+        </p>
       </section>
     );
   }
@@ -52,14 +60,10 @@ export function BestFourthsView(props: BestFourthsViewProps) {
       <div className="live-rule-banner">
         <div className="live-rule-banner-left">
           <span className="live-rule-eyebrow">
-            Règle officielle Coinch&apos;Eirb · Départage automatique
+            Top {directTop} par poule + {props.wildcardSlotsAvailable} meilleur(s) {wildcardRankNum}e(s)
           </span>
           <p className="live-rule-text">
-            Les 3 premiers de chaque poule accèdent directement aux Huitièmes de
-            finale, accompagnés du meilleur 4e ({props.wildcardSlotsAvailable}{" "}
-            place restante, sans mini-consolante). En cas d&apos;égalité parfaite
-            de victoires et de points marqués, l&apos;équipe issue de la{" "}
-            <strong>poule ayant cumulé le plus de points</strong> l&apos;emporte.
+            Départage : victoires · points marqués · force de la poule.
           </p>
         </div>
 
@@ -67,7 +71,7 @@ export function BestFourthsView(props: BestFourthsViewProps) {
           <div className="live-leader-callout">
             <span className="live-leader-tag">
               <TrophyIcon size={15} />
-              <span>Qualifié virtuel (16e)</span>
+              <span>Meilleur {wildcardRankNum}e en tête</span>
             </span>
             <strong className="live-leader-name">{leaderPrimary}</strong>
             {leaderNick !== null && (
@@ -85,7 +89,7 @@ export function BestFourthsView(props: BestFourthsViewProps) {
         <table className="live-fourths-table">
           <thead>
             <tr>
-              <th scope="col">Rang 4es</th>
+              <th scope="col">Rang {wildcardRankNum}es</th>
               <th scope="col">Joueurs</th>
               <th scope="col">Poule d&apos;origine</th>
               <th scope="col" className="num">

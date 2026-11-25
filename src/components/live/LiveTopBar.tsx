@@ -24,6 +24,7 @@ interface LiveTopBarProps {
   connectionMode: RealtimeConnectionMode;
   isPaused: boolean;
   isFullscreen: boolean;
+  soundEnabled: boolean;
   fullscreenNotice: string | null;
   queuedCount: number;
   hasActivePopup: boolean;
@@ -32,6 +33,8 @@ interface LiveTopBarProps {
   onStepSlide: (direction: -1 | 1) => void;
   onTogglePause: () => void;
   onToggleFullscreen: () => void;
+  onToggleSound: () => void;
+  onTriggerFirstDealPopup: () => void;
   onSimulateAnnouncement: () => void;
 }
 
@@ -88,6 +91,11 @@ export function LiveTopBar(props: LiveTopBarProps) {
 
   const totalPendingInQueue = props.queuedCount;
 
+  let soundLabel = "Son OFF";
+  if (props.soundEnabled) {
+    soundLabel = "Son ON";
+  }
+
   return (
     <header className="live-topbar">
       <div className="live-topbar-row">
@@ -98,8 +106,8 @@ export function LiveTopBar(props: LiveTopBarProps) {
             title="Retour à l'accueil Coinch'Eirb"
           >
             <img
-              src="/assets/logo-coincheirb.jpg"
-              alt="Logo abeille Coinch'Eirb"
+              src="/assets/media/logo-abeilles.jpg"
+              alt="Logo abeilles Coinch'Eirb"
               width={40}
               height={40}
               className="live-brand-logo"
@@ -168,11 +176,30 @@ export function LiveTopBar(props: LiveTopBarProps) {
         <div className="live-controls-group">
           <button
             type="button"
+            className="live-ctrl-btn"
+            onClick={props.onToggleSound}
+            data-paused={String(props.soundEnabled)}
+            title="Activer ou couper les effets sonores des pop-ups"
+          >
+            <span>{soundLabel}</span>
+          </button>
+
+          <button
+            type="button"
+            className="live-ctrl-btn"
+            onClick={props.onTriggerFirstDealPopup}
+            title="Lancer la vidéo Première Donne sur le projecteur"
+          >
+            <span>1re Donne</span>
+          </button>
+
+          <button
+            type="button"
             className="live-sim-btn"
             onClick={props.onSimulateAnnouncement}
           >
             <MegaphoneIcon size={15} />
-            <span>Simuler annonce Live</span>
+            <span>Pop-up</span>
             {totalPendingInQueue > 0 && (
               <span className="live-queue-badge tabular-nums">
                 +{totalPendingInQueue}

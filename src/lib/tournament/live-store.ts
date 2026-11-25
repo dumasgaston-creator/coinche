@@ -732,6 +732,198 @@ function autoAdvanceTournamentStage(
   };
 }
 
+function dispatchLiveEventPayload(payload: Record<string, unknown>): void {
+  if (typeof window === "undefined") {
+    return;
+  }
+  try {
+    window.localStorage.setItem(
+      LIVE_ANNOUNCEMENT_STORAGE_KEY,
+      JSON.stringify(payload),
+    );
+  } catch {
+    // Ignore
+  }
+
+  if ("BroadcastChannel" in window) {
+    try {
+      const channel = new BroadcastChannel(UNIFIED_BROADCAST_CHANNEL);
+      channel.postMessage(payload);
+      channel.close();
+    } catch {
+      // Ignore
+    }
+  }
+}
+
+function formatKnockoutEliminationLabel(phase: MatchPhase): string {
+  if (phase === "round_of_16") {
+    return "HUITIÈME (500 PTS)";
+  }
+  if (phase === "quarterfinals") {
+    return "QUART DE FINALE (600 PTS)";
+  }
+  if (phase === "semifinals") {
+    return "DEMI-FINALE (700 PTS)";
+  }
+  return "FINALE (1000 PTS)";
+}
+
+/**
+ * Diffuse un pop-up special /live (Capri-Seum elimination, Champions, Premiere donne).
+ */
+export function broadcastSpecialLiveEventFromStore(params: {
+  specialKind: "elimination" | "champion" | "first_deal";
+  tableNumber: number;
+  teamName: string;
+  opponentName: string | null;
+  pointsAwarded: number | null;
+  customHeadline: string;
+  customBadge: string;
+  contractNote: string | null;
+}): void {
+  let phase: LivePopupPhase = "announced";
+  if (params.specialKind === "elimination") {
+    phase = "failed";
+  } else if (params.specialKind === "champion") {
+    phase = "passed";
+  }
+
+  dispatchLiveEventPayload({
+    id: `special-${params.specialKind}-${Date.now()}`,
+    specialKind: params.specialKind,
+    table_number: params.tableNumber,
+    team_name_snapshot: params.teamName,
+    opponentName: params.opponentName,
+    announcement_type: "coinche",
+    phase,
+    points_awarded: params.pointsAwarded,
+    customHeadline: params.customHeadline,
+    customBadge: params.customBadge,
+    contractNote: params.contractNote,
+    created_at: new Date().toISOString(),
+  });
+}
+
+function triggerAutomaticScorePopups(
+  prevState: UnifiedTournamentState,
+  nextState: UnifiedTournamentState,
+  targetMatchId: string,
+): void {
+  // 1. Pop-up video "Premiere donne" si c'est la toute 1re donne jouee du tournoi
+  let prevTotalDeals = 0;
+  for (const m of prevState.matches) {
+    prevTotalDeals += m.dealsPlayed;
+  }
+  let nextTotalDeals = 0;
+  for (const m of nextState.matches) {
+    nextTotalDeals += m.dealsPlayed;
+  }
+
+  const prevMatch = prevState.matches.find((m) => m.id === targetMatchId);
+  const nextMatch = nextState.matches.find((m) => m.id === targetMatchId);
+  if (nextMatch === undefined) {
+    return;
+  }
+
+  if (prevTotalDeals === 0 && nextTotalDeals > 0) {
+    const tA = findUnifiedTeam(nextState.teams, nextMatch.teamAId);
+    const tB = findUnifiedTeam(nextState.teams, nextMatch.teamBId);
+    let labelA = "Table 1";
+    if (tA !== null) {
+      labelA = formatPlayersPrimaryName(tA.player1Name, tA.player2Name);
+    }
+    let labelB: string | null = null;
+    if (tB !== null) {
+      labelB = formatPlayersPrimaryName(tB.player1Name, tB.player2Name);
+    }
+    broadcastSpecialLiveEventFromStore({
+      specialKind: "first_deal",
+      tableNumber: nextMatch.tableNumber ?? 1,
+      teamName: labelA,
+      opponentName: labelB,
+      pointsAwarded: null,
+      customHeadline: "PREMIÈRE DONNE !",
+      customBadge: "COUP D'ENVOI · COINCH'EIRB",
+      contractNote: "La soirée est officiellement lancée",
+    });
+  }
+
+  // 2. Pop-up Capri-Seum (elimination en 8e/Quart/Demi a 500/600/700) ou Champions (Finale a 1000)
+  const wasFinished =
+    prevMatch !== undefined && isMatchFinished(prevMatch.status);
+  const isNowFinished = isMatchFinished(nextMatch.status);
+
+  if (
+    nextMatch.phase !== "pool" &&
+    !wasFinished &&
+    isNowFinished &&
+    nextMatch.winnerTeamId !== null
+  ) {
+    const teamA = findUnifiedTeam(nextState.teams, nextMatch.teamAId);
+    const teamB = findUnifiedTeam(nextState.teams, nextMatch.teamBId);
+    let winnerName = "Vainqueurs";
+    let loserName = "Adversaires";
+    let winScore = nextMatch.scoreTeamA;
+    let loseScore = nextMatch.scoreTeamB;
+
+    if (nextMatch.winnerTeamId === nextMatch.teamAId) {
+      if (teamA !== null) {
+        winnerName = formatPlayersPrimaryName(
+          teamA.player1Name,
+          teamA.player2Name,
+        );
+      }
+      if (teamB !== null) {
+        loserName = formatPlayersPrimaryName(
+          teamB.player1Name,
+          teamB.player2Name,
+        );
+      }
+    } else {
+      winScore = nextMatch.scoreTeamB;
+      loseScore = nextMatch.scoreTeamA;
+      if (teamB !== null) {
+        winnerName = formatPlayersPrimaryName(
+          teamB.player1Name,
+          teamB.player2Name,
+        );
+      }
+      if (teamA !== null) {
+        loserName = formatPlayersPrimaryName(
+          teamA.player1Name,
+          teamA.player2Name,
+        );
+      }
+    }
+
+    if (nextMatch.phase === "final") {
+      broadcastSpecialLiveEventFromStore({
+        specialKind: "champion",
+        tableNumber: nextMatch.tableNumber ?? 1,
+        teamName: winnerName,
+        opponentName: loserName,
+        pointsAwarded: winScore,
+        customHeadline: "CHAMPIONS COINCH'EIRB !",
+        customBadge: `FINALE · ${winScore} – ${loseScore}`,
+        contractNote: `Victoire finale face à ${loserName}`,
+      });
+    } else {
+      const stageTag = formatKnockoutEliminationLabel(nextMatch.phase);
+      broadcastSpecialLiveEventFromStore({
+        specialKind: "elimination",
+        tableNumber: nextMatch.tableNumber ?? 1,
+        teamName: loserName,
+        opponentName: winnerName,
+        pointsAwarded: winScore,
+        customHeadline: "CAPRI-SEUM !",
+        customBadge: `ÉLIMINÉS EN ${stageTag}`,
+        contractNote: `Sortis ${loseScore} – ${winScore} par ${winnerName}`,
+      });
+    }
+  }
+}
+
 /**
  * Ajoute une nouvelle donne sur un match depuis `/ma-table` et met a jour
  * immediatement les poules, meilleurs 4es et l'arbre final (avec creation automatique
@@ -745,7 +937,8 @@ export function recordDealInStore(params: {
   announcementOutcome: AnnouncementOutcome | null;
   parlantePenalty: boolean;
 }): UnifiedTournamentState {
-  return updateUnifiedTournamentState((state) => {
+  const before = readUnifiedTournamentState();
+  const after = updateUnifiedTournamentState((state) => {
     const updatedMatches = state.matches.map((match) => {
       if (match.id !== params.matchId) {
         return match;
@@ -777,6 +970,9 @@ export function recordDealInStore(params: {
       matches: updatedMatches,
     });
   });
+
+  triggerAutomaticScorePopups(before, after, params.matchId);
+  return after;
 }
 
 export function editDealInStore(params: {
@@ -822,7 +1018,8 @@ export function recordDirectFinalScoreInStore(params: {
   scoreTeamA: number;
   scoreTeamB: number;
 }): UnifiedTournamentState {
-  return updateUnifiedTournamentState((state) => {
+  const before = readUnifiedTournamentState();
+  const after = updateUnifiedTournamentState((state) => {
     const updatedMatches = state.matches.map((match) => {
       if (match.id !== params.matchId) {
         return match;
@@ -851,6 +1048,9 @@ export function recordDirectFinalScoreInStore(params: {
       matches: updatedMatches,
     });
   });
+
+  triggerAutomaticScorePopups(before, after, params.matchId);
+  return after;
 }
 
 /**
@@ -1023,7 +1223,8 @@ export function adminForceUpdateMatchInStore(params: {
   lockedByAdmin: boolean;
   forfeitTeamId: string | null;
 }): UnifiedTournamentState {
-  return updateUnifiedTournamentState((state) => {
+  const before = readUnifiedTournamentState();
+  const after = updateUnifiedTournamentState((state) => {
     const updatedMatches = state.matches.map((match) => {
       if (match.id !== params.matchId) {
         return match;
@@ -1071,6 +1272,9 @@ export function adminForceUpdateMatchInStore(params: {
       teams: updatedTeams,
     });
   });
+
+  triggerAutomaticScorePopups(before, after, params.matchId);
+  return after;
 }
 
 export function adminGeneratePoolsInStore(): UnifiedTournamentState {
@@ -1369,11 +1573,14 @@ export function adminImportTeamsIntoStore(
 
 export function adminResetTournamentInStore(
   mode: "demo" | "clean_checkin",
+  demoTeamCount: number = 20,
 ): UnifiedTournamentState {
   if (mode === "clean_checkin") {
     return writeUnifiedTournamentState(createCleanCheckinTournamentState());
   }
-  return writeUnifiedTournamentState(createDefaultUnifiedTournamentState());
+  return writeUnifiedTournamentState(
+    createDefaultUnifiedTournamentState(demoTeamCount),
+  );
 }
 
 export {

@@ -6,18 +6,22 @@ import type { LiveTeamDisplayInfo } from "@/components/live/types";
 interface PoolsViewProps {
   pools: PoolStandingSummary[];
   wildcardCandidates: QualifiedTeamSeed[];
+  qualifiedLookup?: Record<string, QualifiedTeamSeed>;
+  directTopRank?: number;
+  wildcardRank?: number | null;
   teamDisplayById?: Record<string, LiveTeamDisplayInfo>;
 }
 
-function getBestWildcardTeamId(
+function getQualifiedWildcardIds(
   wildcardCandidates: QualifiedTeamSeed[],
-): string | null {
+): Set<string> {
+  const ids = new Set<string>();
   for (const candidate of wildcardCandidates) {
     if (candidate.qualified) {
-      return candidate.teamId;
+      ids.add(candidate.teamId);
     }
   }
-  return null;
+  return ids;
 }
 
 function formatDiff(diff: number): string {
@@ -32,7 +36,9 @@ function formatDiff(diff: number): string {
  * Code couleur : 3 premiers qualifies directs (vert), 4e meilleur en ballotage favorable (ambre).
  */
 export function PoolsView(props: PoolsViewProps) {
-  const bestWildcardId = getBestWildcardTeamId(props.wildcardCandidates);
+  const qualifiedWildcardIds = getQualifiedWildcardIds(props.wildcardCandidates);
+  const directTop = props.directTopRank ?? 3;
+  const wildcardRankNum = props.wildcardRank ?? 4;
 
   if (props.pools.length === 0) {
     return (
@@ -47,15 +53,17 @@ export function PoolsView(props: PoolsViewProps) {
       <div className="live-legend-bar">
         <span className="live-legend-item">
           <span className="live-legend-swatch swatch-pass" />
-          <span>Top 3 · Qualifié direct (8es)</span>
+          <span>Top {directTop} · Qualifié direct</span>
         </span>
-        <span className="live-legend-item">
-          <span className="live-legend-swatch swatch-amber" />
-          <span>Meilleur 4e · Qualifié (16e ticket)</span>
-        </span>
+        {props.wildcardRank !== null && (
+          <span className="live-legend-item">
+            <span className="live-legend-swatch swatch-amber" />
+            <span>Meilleur(s) {wildcardRankNum}e(s) · Qualifié (8es)</span>
+          </span>
+        )}
         <span className="live-legend-item">
           <span className="live-legend-swatch swatch-muted" />
-          <span>Autres 4es · Élimination directe</span>
+          <span>Autres rangs · Élimination directe</span>
         </span>
       </div>
 
@@ -102,17 +110,28 @@ export function PoolsView(props: PoolsViewProps) {
                 </thead>
                 <tbody>
                   {pool.standings.map((team) => {
+                    const qualEntry = props.qualifiedLookup?.[team.teamId];
                     let rowState = "eliminated";
-                    let statusTag = "4e";
+                    let statusTag = `${team.poolRank}e`;
                     if (team.isForfeit) {
                       rowState = "forfeit";
                       statusTag = "Forfait";
-                    } else if (team.poolRank <= 3) {
+                    } else if (qualEntry !== undefined) {
+                      if (qualEntry.qualified) {
+                        if (qualEntry.qualificationReason === "best_wildcards") {
+                          rowState = "wildcard-lead";
+                          statusTag = `M${team.poolRank}`;
+                        } else {
+                          rowState = "direct";
+                          statusTag = "Q";
+                        }
+                      }
+                    } else if (team.poolRank <= directTop) {
                       rowState = "direct";
                       statusTag = "Q";
-                    } else if (team.teamId === bestWildcardId) {
+                    } else if (qualifiedWildcardIds.has(team.teamId)) {
                       rowState = "wildcard-lead";
-                      statusTag = "M4";
+                      statusTag = `M${team.poolRank}`;
                     }
 
                     const displayInfo = props.teamDisplayById?.[team.teamId];

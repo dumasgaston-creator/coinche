@@ -13,6 +13,7 @@ import {
 } from "@/components/icons/Icons";
 import { formatTournamentStatusLabel } from "@/components/admin/admin-demo-data";
 import type { AdminTournamentMeta } from "@/components/admin/admin-types";
+import { describeQualificationFormula } from "@/lib/tournament";
 import type { TournamentStatus } from "@/types/database";
 
 interface AdminControlHeaderProps {
@@ -29,7 +30,7 @@ interface AdminControlHeaderProps {
   onAdvanceToKnockout: () => void;
   onSetTournamentPhase: (status: TournamentStatus) => void;
   onThresholdChange: (nextThreshold: number) => void;
-  onResetTournament: (mode: "demo" | "clean_checkin") => void;
+  onResetTournament: (mode: "demo" | "clean_checkin", demoCount?: number) => void;
 }
 
 const TOURNAMENT_PHASE_STEPS: Array<{
@@ -50,6 +51,12 @@ export function AdminControlHeader(props: AdminControlHeaderProps) {
   const [confirmResetMode, setConfirmResetMode] = useState<
     "demo" | "clean_checkin" | null
   >(null);
+  const [demoTeamCountDraft, setDemoTeamCountDraft] = useState<number>(24);
+
+  const liveFormula = describeQualificationFormula(
+    props.checkedInCount,
+    props.tournament.roundOf16Threshold,
+  );
 
   function handleSaveTitle(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -110,7 +117,7 @@ export function AdminControlHeader(props: AdminControlHeaderProps) {
             className="btn btn-sm btn-secondary"
             onClick={() => setConfirmResetMode("demo")}
           >
-            <span>Restaurer démo (20 éq.)</span>
+            <span>Tournoi test (N éq.)</span>
           </button>
 
           <button
@@ -136,12 +143,44 @@ export function AdminControlHeader(props: AdminControlHeaderProps) {
               flexWrap: "wrap",
             }}
           >
-            <span>
-              {confirmResetMode === "clean_checkin" &&
-                "Confirmer la réinitialisation complète à 0 point (phase Check-in avant 18h30) ?"}
-              {confirmResetMode === "demo" &&
-                "Confirmer le rechargement du tournoi de démonstration complet (20 équipes, 5 poules) ?"}
-            </span>
+            <div style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap" }}>
+              <span>
+                {confirmResetMode === "clean_checkin" &&
+                  "Confirmer la réinitialisation complète à 0 point (phase Check-in avant 18h30) ?"}
+                {confirmResetMode === "demo" &&
+                  "Générer un tournoi test interactif avec combien d'équipes ?"}
+              </span>
+              {confirmResetMode === "demo" && (
+                <div style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}>
+                  <input
+                    type="number"
+                    min={4}
+                    max={64}
+                    aria-label="Nombre d'équipes pour le tournoi test"
+                    value={demoTeamCountDraft}
+                    onChange={(e) => {
+                      const val = Number.parseInt(e.target.value, 10);
+                      if (!Number.isNaN(val)) {
+                        setDemoTeamCountDraft(Math.max(4, Math.min(64, val)));
+                      }
+                    }}
+                    style={{
+                      width: "64px",
+                      padding: "4px 6px",
+                      borderRadius: "6px",
+                      border: "1px solid var(--border-strong)",
+                      backgroundColor: "var(--bg-surface)",
+                      color: "var(--ink-primary)",
+                      fontWeight: 800,
+                      textAlign: "center",
+                    }}
+                  />
+                  <span style={{ fontSize: "12px", fontWeight: 700 }}>
+                    équipes (ex. 20, 22, 24, 28)
+                  </span>
+                </div>
+              )}
+            </div>
             <div style={{ display: "inline-flex", gap: "8px" }}>
               <button
                 type="button"
@@ -156,10 +195,10 @@ export function AdminControlHeader(props: AdminControlHeaderProps) {
                 onClick={() => {
                   const chosen = confirmResetMode;
                   setConfirmResetMode(null);
-                  props.onResetTournament(chosen);
+                  props.onResetTournament(chosen, demoTeamCountDraft);
                 }}
               >
-                Confirmer la réinitialisation
+                Confirmer
               </button>
             </div>
           </div>
@@ -249,6 +288,19 @@ export function AdminControlHeader(props: AdminControlHeaderProps) {
               </span>{" "}
               équipes
             </p>
+            {liveFormula !== null && (
+              <p
+                className="admin-subtitle"
+                style={{
+                  marginTop: "4px",
+                  color: "var(--accent-amber)",
+                  fontWeight: 700,
+                }}
+              >
+                Format auto ({props.checkedInCount} éq.) :{" "}
+                {liveFormula.shortLabel}
+              </p>
+            )}
           </div>
 
           <div

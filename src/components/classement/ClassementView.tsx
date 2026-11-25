@@ -532,6 +532,30 @@ export function ClassementView() {
     tabStatsActive = "true";
   }
 
+  const wildcardRankNum = dataset.qualification.wildcardRank ?? 4;
+  let directTopCount = 0;
+  for (const qt of dataset.qualification.qualifiedTeams) {
+    if (
+      qt.qualificationReason === "direct_top_n" &&
+      qt.poolRank > directTopCount
+    ) {
+      directTopCount = qt.poolRank;
+    }
+  }
+  if (directTopCount === 0) {
+    directTopCount = 2;
+  }
+  const wildcardSlotCount = dataset.qualification.qualifiedTeams.filter(
+    (qt) => qt.qualificationReason === "best_wildcards",
+  ).length;
+
+  let qualificationSubLabel = `Top ${directTopCount} par poule`;
+  if (wildcardSlotCount === 1) {
+    qualificationSubLabel = `Top ${directTopCount} + 1 meilleur ${wildcardRankNum}e`;
+  } else if (wildcardSlotCount > 1) {
+    qualificationSubLabel = `Top ${directTopCount} + ${wildcardSlotCount} meilleurs ${wildcardRankNum}es`;
+  }
+
   return (
     <div className="classement-shell">
       <header className="classement-hero">
@@ -543,14 +567,8 @@ export function ClassementView() {
                 <span>Synchronisé en direct · {dataset.eventDateLabel}</span>
               </span>
               <h1 className="classement-main-title">
-                Classements &amp; Arbre Coinch&apos;Eirb
+                Classements &amp; Arbre
               </h1>
-              <p className="classement-subtitle">
-                Suivi temps réel des poules, course aux meilleurs 4es, arbre des
-                phases finales (500 / 600 / 700 / 1000 pts) et classement
-                général annuel. Chaque point saisi sur <strong>Ma table</strong>{" "}
-                ou <strong>/admin</strong> met cette page à jour instantanément.
-              </p>
             </div>
             <span className="badge badge-amber">
               Saison {dataset.schoolYear}
@@ -566,7 +584,7 @@ export function ClassementView() {
               {dataset.eveningStats.totalTeams}
             </span>
             <span className="classement-kpi-sub">
-              Top 3 par poule + meilleur(s) 4e
+              {qualificationSubLabel}
             </span>
           </div>
           <div className="classement-kpi-box">
@@ -683,7 +701,7 @@ export function ClassementView() {
           onClick={() => setActiveTab("pools")}
         >
           <TableCardsIcon size={16} />
-          <span>Poules &amp; 4es</span>
+          <span>Poules &amp; {wildcardRankNum}es</span>
         </button>
         <button
           type="button"
@@ -820,14 +838,14 @@ export function ClassementView() {
                           isWildcard = "true";
                           statusBadge = (
                             <span className="badge badge-amber">
-                              Meilleur 4e · #{qual.bracketSeed}
+                              Meilleur {team.poolRank}e · #{qual.bracketSeed}
                             </span>
                           );
                         } else {
                           isDirect = "true";
                           statusBadge = (
                             <span className="badge badge-pass">
-                              Qualifié Top 3 · #{qual.bracketSeed}
+                              Qualifié Top {directTopCount} · #{qual.bracketSeed}
                             </span>
                           );
                         }
@@ -900,7 +918,7 @@ export function ClassementView() {
                 Départage du dernier ticket · Pas de mini-consolante
               </span>
               <h2 className="section-title" style={{ marginTop: "4px" }}>
-                Classement comparatif des Meilleurs 4es
+                Classement comparatif des Meilleurs {wildcardRankNum}es
               </h2>
               <p
                 style={{
@@ -909,10 +927,13 @@ export function ClassementView() {
                   color: "var(--ink-secondary)",
                 }}
               >
-                Sur 20 équipes (5 poules de 4), les 3 premiers de chaque poule +
-                le meilleur 4e rejoignent les Huitièmes de finale. En cas
-                d&apos;égalité parfaite, l&apos;équipe issue de la poule ayant
-                cumulé le plus de points l&apos;emporte.
+                Sur {dataset.eveningStats.totalTeams} équipes (
+                {dataset.qualification.pools.length} poules), les{" "}
+                {directTopCount} premiers de chaque poule + {wildcardSlotCount}{" "}
+                meilleur(s) {wildcardRankNum}e(s) rejoignent la phase finale (
+                {dataset.qualification.format.qualifierCount} qualifiés max,
+                jamais au-delà des Huitièmes). En cas d&apos;égalité parfaite,
+                la poule ayant cumulé le plus de points départage.
               </p>
             </div>
 
@@ -1568,6 +1589,35 @@ export function ClassementView() {
         >
           <div className="podium-grid">
             <article className="card-ruled">
+              <div
+                style={{
+                  width: "100%",
+                  height: "150px",
+                  borderRadius: "8px",
+                  overflow: "hidden",
+                  marginBottom: "10px",
+                  border: "1px solid var(--accent-amber)",
+                }}
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={
+                    state.tournament.winnerPhotoUrl ??
+                    "/assets/media/vainqueur-precedent.jpg"
+                  }
+                  alt={
+                    state.tournament.winnerPhotoCaption ??
+                    "Photo des vainqueurs Coinch'Eirb"
+                  }
+                  style={{
+                    width: "100%",
+                    height: "100%",
+                    objectFit: "cover",
+                    objectPosition: "center 22%",
+                    display: "block",
+                  }}
+                />
+              </div>
               <span className="eyebrow">
                 <SpadeSuitIcon size={13} />
                 <span>1re Place · Finale 1000 pts</span>

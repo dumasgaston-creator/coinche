@@ -1,12 +1,20 @@
 "use client";
 
-import { useState, type ChangeEvent } from "react";
+import { useEffect, useState, type ChangeEvent } from "react";
 import { CheckIcon, TrophyIcon } from "@/components/icons/Icons";
 import {
   formatMatchPhaseLabel,
   inspectClientImageMagicBytes,
 } from "@/components/admin/admin-demo-data";
 import type { AdminTournamentMeta } from "@/components/admin/admin-types";
+import {
+  clearCustomSound,
+  playLiveSound,
+  readCustomSounds,
+  saveCustomSound,
+  type CustomSoundsMap,
+  type LiveSoundSlot,
+} from "@/components/live/sound-engine";
 import type {
   PoolStandingSummary,
   QualificationOutcome,
@@ -21,7 +29,18 @@ interface AdminPosterAndKnockoutPanelProps {
     mimeLabel: string;
     sizeLabel: string;
   }) => void;
+  onWinnerPhotoUpdated?: (params: {
+    winnerPhotoUrl: string;
+    winnerPhotoCaption: string;
+  }) => void;
 }
+
+const SOUND_SLOTS_META: ReadonlyArray<{ slot: LiveSoundSlot; label: string }> = [
+  { slot: "announce", label: "Annonce (Coinche / Capot / Générale)" },
+  { slot: "passed", label: "Contrat passé" },
+  { slot: "failed", label: "Capri-Seum (Chuté / Éliminé)" },
+  { slot: "champion", label: "Champions (Finale 1000)" },
+];
 
 function compressFileToPersistentDataUrl(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -57,7 +76,7 @@ function compressFileToPersistentDataUrl(file: File): Promise<string> {
           return;
         }
         ctx.drawImage(img, 0, 0, w, h);
-        resolve(canvas.toDataURL("image/jpeg", 0.86));
+        resolve(canvas.toDataURL("image/jpeg", 0.85));
       };
       img.src = rawDataUrl;
     };
@@ -72,6 +91,18 @@ export function AdminPosterAndKnockoutPanel(
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [uploading, setUploading] = useState<boolean>(false);
 
+  const [winnerCaptionDraft, setWinnerCaptionDraft] = useState<string>(
+    props.tournament.winnerPhotoCaption ?? "Vainqueurs de la soirée",
+  );
+  const [winnerStatus, setWinnerStatus] = useState<string | null>(null);
+
+  const [customSounds, setCustomSounds] = useState<CustomSoundsMap>({});
+  const [soundNotice, setSoundNotice] = useState<string | null>(null);
+
+  useEffect(() => {
+    setCustomSounds(readCustomSounds());
+  }, []);
+
   async function handlePosterFileChange(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
     if (file === undefined) {
@@ -84,10 +115,7 @@ export function AdminPosterAndKnockoutPanel(
 
     const magicCheck = await inspectClientImageMagicBytes(file);
     if (!magicCheck.valid) {
-      setUploadError(
-        magicCheck.reason ??
-          "Fichier image rejeté par l'inspection des octets magiques.",
-      );
+      setUploadError(magicCheck.reason ?? "Format image refusé.");
       setUploading(false);
       return;
     }
@@ -132,71 +160,126 @@ export function AdminPosterAndKnockoutPanel(
         props.onPosterUpdated({
           posterUrl: targetUrl,
           mimeLabel: payload.detectedMimeType,
-          sizeLabel: `${sizeKb} Ko (vérifié serveur)`,
+          sizeLabel: `${sizeKb} Ko`,
         });
-        setUploadStatus(
-          `Affiche validée par /api/admin/poster (${payload.detectedMimeType}, ${sizeKb} Ko) · Diffusée sur l'accueil et /live.`,
-        );
+        setUploadStatus("Affiche diffusée sur l'accueil et /live.");
       } else {
         props.onPosterUpdated({
           posterUrl: persistentPreviewUrl,
           mimeLabel: magicCheck.detectedMime,
-          sizeLabel: `${sizeKb} Ko (magic bytes OK)`,
+          sizeLabel: `${sizeKb} Ko`,
         });
-        setUploadStatus(
-          `Octets magiques ${magicCheck.detectedMime} vérifiés (${sizeKb} Ko) · Diffusée en direct sur l'accueil et /live.`,
-        );
+        setUploadStatus("Affiche diffusée en direct.");
       }
     } catch {
       props.onPosterUpdated({
         posterUrl: persistentPreviewUrl,
         mimeLabel: magicCheck.detectedMime,
-        sizeLabel: `${sizeKb} Ko (magic bytes OK)`,
+        sizeLabel: `${sizeKb} Ko`,
       });
-      setUploadStatus(
-        `Octets magiques ${magicCheck.detectedMime} vérifiés (${sizeKb} Ko) · Synchronisée localement.`,
-      );
+      setUploadStatus("Affiche synchronisée.");
     }
 
     setUploading(false);
   }
 
-  let uploadBtnText = "Choisir une affiche (JPEG, PNG, WebP · max 4 Mo)";
-  if (uploading) {
-    uploadBtnText = "Vérification des magic bytes...";
+  async function handleWinnerPhotoChange(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    if (file === undefined || props.onWinnerPhotoUpdated === undefined) {
+      return;
+    }
+
+    setWinnerStatus(null);
+    const magicCheck = await inspectClientImageMagicBytes(file);
+    if (!magicCheck.valid) {
+      setWinnerStatus(magicCheck.reason ?? "Format image refusé.");
+      return;
+    }
+
+    try {
+      const compressedUrl = await compressFileToPersistentDataUrl(file);
+      let caption = "Vainqueurs de la soirée";
+      if (winnerCaptionDraft.trim().length > 0) {
+        caption = winnerCaptionDraft.trim();
+      }
+      props.onWinnerPhotoUpdated({
+        winnerPhotoUrl: compressedUrl,
+        winnerPhotoCaption: caption,
+      });
+      setWinnerStatus("Photo des vainqueurs mise en ligne en direct !");
+    } catch {
+      setWinnerStatus("Impossible de lire cette photo.");
+    }
   }
+
+  function handleSoundFileUpload(
+    slot: LiveSoundSlot,
+    event: ChangeEvent<HTMLInputElement>,
+  ) {
+    const file = event.target.files?.[0];
+    if (file === undefined) {
+      return;
+    }
+    setSoundNotice(null);
+    if (!file.type.startsWith("audio/")) {
+      setSoundNotice("Choisis un fichier audio (.mp3, .wav ou .ogg).");
+      return;
+    }
+    if (file.size > 1_200_000) {
+      setSoundNotice("Extrait audio trop lourd (max 1,2 Mo).");
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof reader.result === "string") {
+        try {
+          const updated = saveCustomSound(slot, {
+            fileName: file.name,
+            dataUrl: reader.result,
+          });
+          setCustomSounds(updated);
+          setSoundNotice(`Son "${file.name}" enregistré pour /live.`);
+        } catch (err) {
+          let msg = "Stockage local saturé.";
+          if (err instanceof Error) {
+            msg = err.message;
+          }
+          setSoundNotice(msg);
+        }
+      }
+    };
+    reader.readAsDataURL(file);
+  }
+
+  let uploadBtnText = "Changer l'affiche (JPEG/PNG/WebP)";
+  if (uploading) {
+    uploadBtnText = "Chargement...";
+  }
+
+  const currentWinnerPhoto =
+    props.tournament.winnerPhotoUrl ?? "/assets/media/vainqueur-precedent.jpg";
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
       <section className="admin-panel" aria-labelledby="admin-poster-heading">
         <div className="admin-panel-header">
           <h2 id="admin-poster-heading" className="admin-panel-title">
-            Affiche Dynamique de la Soirée
+            Affiche &amp; Photo Vainqueur Live
           </h2>
-          <span className="badge badge-amber">
-            {props.tournament.posterMimeLabel}
-          </span>
+          <span className="badge badge-amber">Temps réel</span>
         </div>
-
-        <p className="admin-panel-subtitle">
-          Diffusée sur le héros d&apos;accueil et dans la boucle du
-          vidéoprojecteur <strong>/live</strong>. Vérification binaire anti-XSS
-          (`validatePosterUpload`).
-        </p>
 
         <div className="admin-poster-preview-grid">
           <div className="admin-poster-thumb">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={props.tournament.posterUrl}
-              alt="Aperçu de l'affiche officielle de la soirée Coinch'Eirb"
+              alt="Affiche de la soirée"
             />
           </div>
 
           <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-            <span className="badge badge-neutral">
-              {props.tournament.posterSizeLabel}
-            </span>
-
+            <strong style={{ fontSize: "12.5px" }}>Affiche soirée</strong>
             <label
               className="btn btn-sm btn-secondary"
               htmlFor="admin-poster-upload-input"
@@ -211,7 +294,6 @@ export function AdminPosterAndKnockoutPanel(
               onChange={handlePosterFileChange}
               style={{ display: "none" }}
             />
-
             {uploadStatus !== null && (
               <p
                 className="admin-subtitle"
@@ -220,7 +302,6 @@ export function AdminPosterAndKnockoutPanel(
                 <CheckIcon size={13} /> {uploadStatus}
               </p>
             )}
-
             {uploadError !== null && (
               <p
                 className="admin-subtitle"
@@ -230,6 +311,141 @@ export function AdminPosterAndKnockoutPanel(
               </p>
             )}
           </div>
+        </div>
+
+        {/* Upload en temps réel de la photo des vainqueurs */}
+        <div
+          style={{
+            paddingTop: "12px",
+            borderTop: "1px solid var(--border-subtle)",
+          }}
+        >
+          <div className="admin-poster-preview-grid">
+            <div className="admin-poster-thumb">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={currentWinnerPhoto}
+                alt="Photo des vainqueurs Coinch'Eirb"
+              />
+            </div>
+
+            <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+              <strong style={{ fontSize: "12.5px" }}>
+                Photo des vainqueurs (en direct)
+              </strong>
+              <input
+                type="text"
+                className="admin-auth-input"
+                placeholder="Ex. Angèle & Kamila · Champions"
+                value={winnerCaptionDraft}
+                onChange={(e) => setWinnerCaptionDraft(e.target.value)}
+              />
+              <label
+                className="btn btn-sm btn-primary"
+                htmlFor="admin-winner-photo-input"
+                style={{ cursor: "pointer" }}
+              >
+                <span>Prendre / Uploader photo vainqueur</span>
+              </label>
+              <input
+                id="admin-winner-photo-input"
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                capture="environment"
+                onChange={handleWinnerPhotoChange}
+                style={{ display: "none" }}
+              />
+              {winnerStatus !== null && (
+                <p
+                  className="admin-subtitle"
+                  style={{ color: "var(--status-pass)", fontWeight: 600 }}
+                >
+                  {winnerStatus}
+                </p>
+              )}
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Sons /live : jingles gratuits intégrés + upload MP3/WAV perso */}
+      <section className="admin-panel" aria-labelledby="admin-sounds-heading">
+        <div className="admin-panel-header">
+          <h2 id="admin-sounds-heading" className="admin-panel-title">
+            Sons des Pop-ups (/live)
+          </h2>
+          <span className="badge badge-neutral">Audio intégré + MP3</span>
+        </div>
+
+        <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+          {SOUND_SLOTS_META.map((item) => {
+            const custom = customSounds[item.slot];
+            let subLabel = "Jingle intégré gratuit";
+            if (custom !== undefined) {
+              subLabel = `MP3 perso : ${custom.fileName}`;
+            }
+
+            return (
+              <div
+                key={item.slot}
+                className="card-alt"
+                style={{
+                  padding: "8px 10px",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  gap: "8px",
+                  flexWrap: "wrap",
+                }}
+              >
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontSize: "12.5px", fontWeight: 700 }}>
+                    {item.label}
+                  </div>
+                  <div style={{ fontSize: "11px", color: "var(--ink-muted)" }}>
+                    {subLabel}
+                  </div>
+                </div>
+                <div style={{ display: "inline-flex", gap: "6px" }}>
+                  <button
+                    type="button"
+                    className="btn btn-sm btn-secondary"
+                    onClick={() => playLiveSound(item.slot, true)}
+                  >
+                    Écouter
+                  </button>
+                  <label
+                    className="btn btn-sm btn-secondary"
+                    htmlFor={`sound-upload-${item.slot}`}
+                    style={{ cursor: "pointer" }}
+                  >
+                    MP3
+                  </label>
+                  <input
+                    id={`sound-upload-${item.slot}`}
+                    type="file"
+                    accept="audio/mpeg,audio/wav,audio/ogg,audio/*"
+                    onChange={(e) => handleSoundFileUpload(item.slot, e)}
+                    style={{ display: "none" }}
+                  />
+                  {custom !== undefined && (
+                    <button
+                      type="button"
+                      className="btn btn-sm btn-ghost-danger"
+                      onClick={() => setCustomSounds(clearCustomSound(item.slot))}
+                    >
+                      Reset
+                    </button>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+          {soundNotice !== null && (
+            <p className="admin-subtitle" style={{ fontWeight: 600 }}>
+              {soundNotice}
+            </p>
+          )}
         </div>
       </section>
 
@@ -254,32 +470,19 @@ export function AdminPosterAndKnockoutPanel(
 
         {props.qualification === null && (
           <p className="admin-panel-subtitle">
-            Pointez au moins 4 équipes au check-in puis cliquez sur « Valider
-            check-in &amp; Générer les poules » pour calculer les qualifications.
+            Générez les poules pour afficher les qualifiés.
           </p>
         )}
 
         {props.qualification !== null && (
           <>
-            <p className="admin-panel-subtitle">
-              Seuil {props.tournament.roundOf16Threshold} éq. :{" "}
-              <strong>
-                {props.qualification.qualifiedTeams.length} qualifiées
-              </strong>{" "}
-              (Top 3 par poule + meilleur 4e au goal-average et force de poule) ·{" "}
-              <strong>
-                {props.qualification.eliminatedTeams.length} éliminées
-              </strong>
-              .
-            </p>
-
             <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
               {props.standings.map((pool) => (
                 <span
                   key={pool.poolNumber}
                   className="badge badge-neutral tabular-nums"
                 >
-                  {pool.poolLabel} : {pool.poolTotalPoints} pts cumulés
+                  {pool.poolLabel} : {pool.poolTotalPoints} pts
                 </span>
               ))}
             </div>
@@ -292,7 +495,7 @@ export function AdminPosterAndKnockoutPanel(
                 <strong
                   style={{ fontSize: "12.5px", textTransform: "uppercase" }}
                 >
-                  Départage des {props.qualification.wildcardRank}es de poule :
+                  Meilleurs {props.qualification.wildcardRank}es :
                 </strong>
                 {props.qualification.wildcardCandidatesRanked.map((cand) => {
                   let badgeClass = "badge badge-fail";
@@ -308,8 +511,7 @@ export function AdminPosterAndKnockoutPanel(
                         <strong>{cand.teamName}</strong> ({cand.poolLabel})
                       </span>
                       <span className="tabular-nums">
-                        {cand.matchesWon}V · {cand.pointsScored} pts (Poule{" "}
-                        {cand.poolTotalPoints})
+                        {cand.matchesWon}V · {cand.pointsScored} pts
                       </span>
                       <span className={badgeClass}>{statusText}</span>
                     </div>
@@ -317,45 +519,6 @@ export function AdminPosterAndKnockoutPanel(
                 })}
               </div>
             )}
-
-            <div className="admin-qualif-summary">
-              {props.qualification.qualifiedTeams.map((team) => {
-                let reasonLabel = "Top 3 poule";
-                if (team.qualificationReason === "best_wildcards") {
-                  reasonLabel = "Meilleur 4e";
-                }
-
-                return (
-                  <div key={team.teamId} className="admin-seed-row">
-                    <div
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: "8px",
-                      }}
-                    >
-                      <span className="admin-seed-num">#{team.bracketSeed}</span>
-                      <span>
-                        <strong>{team.teamName}</strong> · {team.poolLabel} (Rang{" "}
-                        {team.poolRank})
-                      </span>
-                    </div>
-                    <div
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: "6px",
-                      }}
-                    >
-                      <span className="tabular-nums">
-                        {team.matchesWon}V · {team.pointsScored} pts
-                      </span>
-                      <span className="badge badge-amber">{reasonLabel}</span>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
           </>
         )}
       </section>

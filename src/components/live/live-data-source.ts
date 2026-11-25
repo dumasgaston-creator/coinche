@@ -196,8 +196,34 @@ export function normalizeAnnouncementEvent(
     createdAt = rawCreatedAt;
   }
 
+  let specialKind: LiveAnnouncementEvent["specialKind"] = "announcement";
+  const rawSpecial = record.specialKind;
+  if (
+    rawSpecial === "elimination" ||
+    rawSpecial === "champion" ||
+    rawSpecial === "first_deal"
+  ) {
+    specialKind = rawSpecial;
+  }
+
+  let customHeadline: string | null = null;
+  if (
+    typeof record.customHeadline === "string" &&
+    record.customHeadline.trim().length > 0
+  ) {
+    customHeadline = record.customHeadline.trim().slice(0, 60);
+  }
+
+  let customBadge: string | null = null;
+  if (
+    typeof record.customBadge === "string" &&
+    record.customBadge.trim().length > 0
+  ) {
+    customBadge = record.customBadge.trim().slice(0, 60);
+  }
+
   return {
-    queueKey: `${id}:${rawPhase}`,
+    queueKey: `${id}:${rawPhase}:${specialKind}`,
     id,
     tableNumber,
     teamName,
@@ -207,6 +233,9 @@ export function normalizeAnnouncementEvent(
     pointsAwarded,
     contractNote,
     createdAt,
+    specialKind,
+    customHeadline,
+    customBadge,
   };
 }
 

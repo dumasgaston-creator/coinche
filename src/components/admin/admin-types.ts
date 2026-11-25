@@ -83,6 +83,8 @@ export interface AdminTournamentMeta {
   posterUrl: string;
   posterMimeLabel: string;
   posterSizeLabel: string;
+  winnerPhotoUrl?: string;
+  winnerPhotoCaption?: string;
 }
 
 export interface AdminCockpitSnapshot {

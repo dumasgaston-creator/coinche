@@ -559,18 +559,20 @@ export function AdminDashboardClient(props: AdminDashboardClientProps) {
     }));
   }
 
-  function handleResetTournament(mode: "demo" | "clean_checkin") {
-    adminResetTournamentInStore(mode);
+  function handleResetTournament(
+    mode: "demo" | "clean_checkin",
+    demoTeamCount: number = 20,
+  ) {
+    const next = adminResetTournamentInStore(mode, demoTeamCount);
     if (mode === "clean_checkin") {
       setFeedback({
         message:
-          "Tournoi remis à zéro (phase Check-in avant 18h30, 0 point). Prêt pour une nouvelle soirée !",
+          "Tournoi remis à zéro (phase Check-in avant 18h30, 0 point). Importez autant d'équipes que vous voulez !",
         tone: "ok",
       });
     } else {
       setFeedback({
-        message:
-          "Tournoi de démonstration (20 équipes, 5 poules, tables en cours) restauré.",
+        message: `Tournoi test généré avec ${next.teams.length} équipes réparties en ${next.pools.length} poules.`,
         tone: "ok",
       });
     }
@@ -786,6 +788,21 @@ export function AdminDashboardClient(props: AdminDashboardClientProps) {
                   posterSizeLabel: posterMeta.sizeLabel,
                 },
               }));
+            }}
+            onWinnerPhotoUpdated={(winnerMeta) => {
+              updateUnifiedTournamentState((prev) => ({
+                ...prev,
+                tournament: {
+                  ...prev.tournament,
+                  winnerPhotoUrl: winnerMeta.winnerPhotoUrl,
+                  winnerPhotoCaption: winnerMeta.winnerPhotoCaption,
+                },
+              }));
+              setFeedback({
+                message:
+                  "Photo du vainqueur diffusée en direct sur l'accueil, /classement et /live !",
+                tone: "ok",
+              });
             }}
           />
         </div>

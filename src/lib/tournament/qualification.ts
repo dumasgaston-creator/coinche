@@ -1,3 +1,4 @@
+import { computeOptimalPoolSizes } from "@/lib/tournament/pool-generator";
 import type {
   CompletedPoolMatchInput,
   GeneratedPool,
@@ -400,5 +401,93 @@ export function resolvePoolQualifications(
     eliminatedTeams: eliminatedSeeds,
     wildcardRank,
     wildcardCandidatesRanked,
+  };
+}
+
+export interface QualificationFormulaSummary {
+  poolCount: number;
+  poolSizes: number[];
+  directTopRank: number;
+  wildcardRank: number | null;
+  wildcardCount: number;
+  qualifierCount: number;
+  startingPhaseLabel: string;
+  shortLabel: string;
+}
+
+/**
+ * Calcule et decrit dynamiquement la formule de poules et de qualification
+ * pour N'IMPORTE QUEL nombre d'equipes N >= 4 (ex. 20, 22, 24, 28, 32...),
+ * en garantissant un plafond aux Huitiemes (16 places max) avec selection
+ * automatique des meilleurs 3es ou meilleurs 4es selon l'effectif.
+ */
+export function describeQualificationFormula(
+  teamCount: number,
+  roundOf16Threshold: number = DEFAULT_ROUND_OF_16_THRESHOLD,
+): QualificationFormulaSummary | null {
+  if (!Number.isInteger(teamCount) || teamCount < 4) {
+    return null;
+  }
+
+  const poolSizes = computeOptimalPoolSizes(teamCount);
+  const poolCount = poolSizes.length;
+  const format = determineKnockoutFormat(teamCount, roundOf16Threshold);
+
+  let directTopRank = 0;
+  let remaining = format.qualifierCount;
+  let wildcardRank: number | null = null;
+  let wildcardCount = 0;
+
+  const maxPoolSize = Math.max(...poolSizes);
+  for (let rank = 1; rank <= maxPoolSize; rank += 1) {
+    const teamsAtRank = poolSizes.filter((size) => size >= rank).length;
+    if (remaining <= 0) {
+      break;
+    }
+    if (teamsAtRank <= remaining) {
+      directTopRank = rank;
+      remaining -= teamsAtRank;
+    } else {
+      wildcardRank = rank;
+      wildcardCount = remaining;
+      remaining = 0;
+      break;
+    }
+  }
+
+  let startingPhaseLabel = "Huitièmes (16)";
+  if (format.startingPhase === "quarterfinals") {
+    startingPhaseLabel = "Quarts (8)";
+  } else if (format.startingPhase === "semifinals") {
+    startingPhaseLabel = "Demies (4)";
+  } else if (format.startingPhase === "final") {
+    startingPhaseLabel = "Finale (2)";
+  }
+
+  let directText = `Top ${directTopRank} par poule`;
+  if (directTopRank === 1) {
+    directText = "1er de chaque poule";
+  }
+
+  let wildcardText = "";
+  if (wildcardRank !== null && wildcardCount > 0) {
+    if (wildcardCount === 1) {
+      wildcardText = ` + 1 meilleur ${wildcardRank}e`;
+    } else {
+      wildcardText = ` + ${wildcardCount} meilleurs ${wildcardRank}es`;
+    }
+  }
+
+  const shortLabel = `${poolCount} poules · ${directText}${wildcardText} -> ${startingPhaseLabel}`;
+
+  return {
+    poolCount,
+    poolSizes,
+    directTopRank,
+    wildcardRank,
+    wildcardCount,
+    qualifierCount: format.qualifierCount,
+    startingPhaseLabel,
+    shortLabel,
   };
 }

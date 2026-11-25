@@ -18,16 +18,10 @@ import {
 import { useTournamentStore } from "@/lib/tournament/use-tournament-store";
 import {
   ArrowRightIcon,
-  ClockIcon,
-  ClubSuitIcon,
-  DiamondSuitIcon,
-  HeartSuitIcon,
   LockIcon,
   ProjectorScreenIcon,
-  SpadeSuitIcon,
   TableCardsIcon,
   TrophyIcon,
-  UsersIcon,
 } from "@/components/icons/Icons";
 
 interface HomeViewProps {
@@ -44,22 +38,22 @@ function formatQuickPhaseLabel(match: UnifiedMatchRecord): string {
     return `Poules · Tour ${match.roundNumber}`;
   }
   if (match.phase === "round_of_16") {
-    return "Huitième · 500 pts";
+    return "8e · 500 pts";
   }
   if (match.phase === "quarterfinals") {
     return "Quart · 600 pts";
   }
   if (match.phase === "semifinals") {
-    return "Demi-finale · 700 pts";
+    return "Demi · 700 pts";
   }
   return "Finale · 1000 pts";
 }
 
 /**
- * Ecran d'accueil Coinch'Eirb :
- * - Acces instantane a sa table en tapant simplement son PRENOM (trouve le binome + adversaire + table)
- * - Raccourcis visibles vers Grand Ecran (/live), Classement & Arbre (/classement) et Poste Admin (/admin)
- * - Affiche dynamique synchronisee avec l'upload Admin.
+ * Page d'accueil Coinch'Eirb epuree et incarnée :
+ * - Hero photographique (vrai hall ENSEIRB + affiche + acces direct par prenom)
+ * - Pellicule reelle des soirees Coinch'Eirb & photo des vainqueurs en temps reel
+ * - Zero paragraphe bavard.
  */
 export function HomeView(props: HomeViewProps) {
   const router = useRouter();
@@ -79,13 +73,19 @@ export function HomeView(props: HomeViewProps) {
   }, [hydrated, state.teams]);
 
   let activePosterUrl = props.posterUrl;
-  let activeTitle = props.tournamentTitle;
   let activeStart = props.startTimeLabel;
+  let activeWinnerPhoto = "/assets/media/vainqueur-precedent.jpg";
+  let activeWinnerCaption = "Derniers vainqueurs · Coinch'Eirb";
 
   if (hydrated) {
     activePosterUrl = state.tournament.posterUrl;
-    activeTitle = state.tournament.title;
-    activeStart = `1er tour à ${state.tournament.startsAtLabel}`;
+    activeStart = `Départ ${state.tournament.startsAtLabel}`;
+    if (state.tournament.winnerPhotoUrl !== undefined) {
+      activeWinnerPhoto = state.tournament.winnerPhotoUrl;
+    }
+    if (state.tournament.winnerPhotoCaption !== undefined) {
+      activeWinnerCaption = state.tournament.winnerPhotoCaption;
+    }
   }
 
   const matchingCandidates = useMemo(() => {
@@ -129,7 +129,7 @@ export function HomeView(props: HomeViewProps) {
     event.preventDefault();
     const cleaned = firstNameQuery.trim();
     if (cleaned.length < 1) {
-      setFormError("Tape simplement ton prénom (ex. Angèle, Chahe, Lucas...).");
+      setFormError("Tape ton prénom.");
       return;
     }
     setFormError(null);
@@ -145,359 +145,249 @@ export function HomeView(props: HomeViewProps) {
       return;
     }
     if (matches.length > 1) {
-      setFormError(
-        "Plusieurs joueurs correspondent : clique sur ton binôme ci-dessous.",
-      );
+      setFormError("Clique sur ton binôme ci-dessous.");
       return;
     }
 
-    setFormError(
-      `Aucun joueur trouvé pour "${cleaned}". Vérifie l'orthographe de ton prénom ou demande à l'admin.`,
-    );
+    setFormError(`Prénom introuvable : "${cleaned}".`);
   }
 
   let savedTeamPlayers = "";
-  let savedTeamNick: string | null = null;
-  let savedOpponentText = "En attente du tirage";
+  let savedOpponentText = "";
   if (savedTeam !== null) {
     savedTeamPlayers = formatPlayersPrimaryName(
       savedTeam.player1Name,
       savedTeam.player2Name,
     );
-    savedTeamNick = formatOptionalTeamNickname(
-      savedTeam.teamName,
-      savedTeam.player1Name,
-      savedTeam.player2Name,
-    );
     if (savedTimeline !== null && savedTimeline.currentMatch !== null) {
-      let oppLabel = "Adversaire à déterminer";
+      let oppLabel = "À déterminer";
       if (savedTimeline.opponent !== null) {
         oppLabel = formatPlayersPrimaryName(
           savedTimeline.opponent.player1Name,
           savedTimeline.opponent.player2Name,
         );
       }
-      savedOpponentText = `Table ${savedTimeline.currentMatch.tableNumber ?? "–"} · contre ${oppLabel} (${formatQuickPhaseLabel(savedTimeline.currentMatch)})`;
+      savedOpponentText = `Table ${savedTimeline.currentMatch.tableNumber ?? "–"} · vs ${oppLabel}`;
     }
   }
 
   return (
     <div className="container-home">
-      <section className="home-hero-grid" aria-labelledby="home-hero-title">
-        <div className="home-hero-copy">
-          <span className="eyebrow">
-            <SpadeSuitIcon size={12} />
-            <span>{activeTitle}</span>
-          </span>
-
-          <h1 id="home-hero-title" className="page-title">
-            Tournoi de Coinche en direct
-          </h1>
-
-          <p className="home-lead">
-            Tape simplement ton prénom pour rejoindre ton binôme et voir contre
-            qui tu joues. Les matchs de poule se ferment automatiquement après 5
-            donnes et les phases finales se créent toutes seules.
-          </p>
-
-          {/* Accès express si le joueur s'est déjà identifié */}
-          {savedTeam !== null && (
-            <div
-              className="card-ruled"
-              style={{
-                display: "flex",
-                flexDirection: "column",
-                gap: "8px",
-                padding: "12px 14px",
-              }}
-            >
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                  gap: "8px",
-                  flexWrap: "wrap",
-                }}
-              >
-                <div>
-                  <span className="eyebrow">
-                    <UsersIcon size={12} />
-                    <span>Mon binôme actif</span>
-                  </span>
-                  <div
-                    className="font-display"
-                    style={{
-                      fontSize: "22px",
-                      fontWeight: 800,
-                      textTransform: "uppercase",
-                      lineHeight: 1.05,
-                    }}
-                  >
-                    {savedTeamPlayers}
-                  </div>
-                  {savedTeamNick !== null && (
-                    <div
-                      style={{
-                        fontSize: "12px",
-                        fontWeight: 600,
-                        color: "var(--accent-terracotta)",
-                      }}
-                    >
-                      « {savedTeamNick} »
-                    </div>
-                  )}
-                </div>
-                <button
-                  type="button"
-                  className="btn btn-primary btn-sm"
-                  onClick={() => openTeamDirectly(savedTeam.id)}
-                >
-                  <TableCardsIcon size={16} />
-                  <span>Aller à ma table</span>
-                  <ArrowRightIcon size={15} />
-                </button>
-              </div>
-              <div
-                style={{
-                  fontSize: "12.5px",
-                  fontWeight: 600,
-                  color: "var(--ink-secondary)",
-                }}
-              >
-                {savedOpponentText}
-              </div>
-            </div>
-          )}
-
-          {/* Formulaire principal : Rejoindre juste avec son PRÉNOM */}
-          <form
-            className="card-alt home-quick-access"
-            onSubmit={handleQuickAccess}
-            noValidate
-          >
-            <label htmlFor="quick-team-input" className="field-label">
-              Rejoindre ma table avec mon prénom
-            </label>
-            <div className="home-quick-row">
-              <input
-                id="quick-team-input"
-                type="text"
-                className="field-input"
-                placeholder="Tape ton prénom (ex. Angèle, Chahe, Lucas...)"
-                value={firstNameQuery}
-                onChange={(event) => {
-                  setFirstNameQuery(event.target.value);
-                  if (formError !== null) {
-                    setFormError(null);
-                  }
-                }}
-                maxLength={60}
-                autoComplete="given-name"
-              />
-              <button type="submit" className="btn btn-primary">
-                Rejoindre
-              </button>
-            </div>
-
-            {matchingCandidates.length > 0 && (
-              <div
-                style={{
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: "6px",
-                  marginTop: "4px",
-                }}
-                role="listbox"
-                aria-label="Joueurs correspondants"
-              >
-                {matchingCandidates.map((cand) => {
-                  const timeline = resolveTeamMatchTimeline(
-                    cand.team.id,
-                    state.matches,
-                    state.teams,
-                  );
-                  let matchSummary = "Check-in · Tirage des poules à venir";
-                  if (timeline.currentMatch !== null) {
-                    let oppName = "À déterminer";
-                    if (timeline.opponent !== null) {
-                      oppName = formatPlayersPrimaryName(
-                        timeline.opponent.player1Name,
-                        timeline.opponent.player2Name,
-                      );
-                    }
-                    matchSummary = `Table ${timeline.currentMatch.tableNumber ?? "–"} · vs ${oppName} (${formatQuickPhaseLabel(timeline.currentMatch)})`;
-                  }
-
-                  return (
-                    <button
-                      key={cand.team.id}
-                      type="button"
-                      onClick={() => openTeamDirectly(cand.team.id)}
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "space-between",
-                        gap: "10px",
-                        padding: "10px 12px",
-                        borderRadius: "8px",
-                        border: "1px solid var(--border-strong)",
-                        backgroundColor: "var(--bg-surface)",
-                        color: "var(--ink-primary)",
-                        textAlign: "left",
-                        cursor: "pointer",
-                        width: "100%",
-                      }}
-                    >
-                      <div style={{ minWidth: 0 }}>
-                        <div
-                          className="font-display"
-                          style={{
-                            fontSize: "18px",
-                            fontWeight: 800,
-                            textTransform: "uppercase",
-                            lineHeight: 1.05,
-                          }}
-                        >
-                          {cand.playersPrimary}
-                        </div>
-                        {cand.nickname !== null && (
-                          <div
-                            style={{
-                              fontSize: "11.5px",
-                              fontWeight: 600,
-                              color: "var(--accent-terracotta)",
-                            }}
-                          >
-                            « {cand.nickname} »
-                          </div>
-                        )}
-                        <div
-                          style={{
-                            fontSize: "12px",
-                            color: "var(--ink-secondary)",
-                            marginTop: "2px",
-                          }}
-                        >
-                          {matchSummary}
-                        </div>
-                      </div>
-                      <ArrowRightIcon
-                        size={16}
-                        style={{ color: "var(--accent-amber)", flexShrink: 0 }}
-                      />
-                    </button>
-                  );
-                })}
-              </div>
-            )}
-
-            {formError !== null && (
-              <p
-                role="alert"
-                style={{
-                  margin: 0,
-                  fontSize: "12.5px",
-                  fontWeight: 600,
-                  color: "var(--status-fail)",
-                }}
-              >
-                {formError}
-              </p>
-            )}
-          </form>
-
-          <div className="home-cta-stack">
-            <Link href="/ma-table" className="btn btn-primary">
-              <TableCardsIcon size={18} />
-              <span>Noter les points (Ma table)</span>
-              <ArrowRightIcon size={17} />
-            </Link>
-
-            <Link href="/live" className="btn btn-terracotta">
-              <ProjectorScreenIcon size={18} />
-              <span>Grand écran (/live)</span>
-            </Link>
-
-            <Link href="/classement" className="btn btn-secondary">
-              <TrophyIcon size={17} />
-              <span>Poules &amp; Arbre final</span>
-            </Link>
-
-            <Link href="/admin" className="btn btn-secondary">
-              <LockIcon size={16} />
-              <span>Poste Admin</span>
-            </Link>
-          </div>
+      {/* HERO ÉDITORIAL PHOTOGRAPHIQUE */}
+      <section className="home-editorial-hero" aria-labelledby="home-hero-title">
+        <div className="home-hero-bg-wrap" aria-hidden="true">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src="/assets/media/soiree-atrium-nuit.jpg"
+            alt=""
+            className="home-hero-bg-img"
+          />
+          <div className="home-hero-bg-scrim" />
         </div>
 
-        <figure className="poster-frame" style={{ margin: 0 }}>
-          <div className="poster-header">
-            <span className="poster-label">Affiche de la soirée</span>
-            <span className="poster-meta">{activeStart}</span>
+        <div className="home-editorial-inner">
+          <div className="home-editorial-left">
+            <div className="home-brand-stamp">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src="/assets/media/logo-abeilles.jpg"
+                alt="Logo Coinch'Eirb"
+                className="home-brand-crest"
+              />
+              <span className="home-brand-kicker">
+                ENSEIRB-MATMECA · {activeStart}
+              </span>
+            </div>
+
+            <h1 id="home-hero-title" className="home-editorial-title">
+              COINCH&apos;EIRB
+            </h1>
+
+            {savedTeam !== null && (
+              <button
+                type="button"
+                className="home-resume-strip"
+                onClick={() => openTeamDirectly(savedTeam.id)}
+              >
+                <div style={{ minWidth: 0, textAlign: "left" }}>
+                  <span className="home-resume-label">Reprendre ma table</span>
+                  <strong className="home-resume-players">
+                    {savedTeamPlayers}
+                  </strong>
+                  {savedOpponentText.length > 0 && (
+                    <span className="home-resume-sub">{savedOpponentText}</span>
+                  )}
+                </div>
+                <ArrowRightIcon size={18} />
+              </button>
+            )}
+
+            <form
+              className="home-firstname-form"
+              onSubmit={handleQuickAccess}
+              noValidate
+            >
+              <label htmlFor="quick-team-input" className="home-firstname-label">
+                Tape ton prénom pour jouer
+              </label>
+              <div className="home-quick-row">
+                <input
+                  id="quick-team-input"
+                  type="text"
+                  className="home-firstname-input"
+                  placeholder="Ex. Angèle, Chahe, Lucas..."
+                  value={firstNameQuery}
+                  onChange={(event) => {
+                    setFirstNameQuery(event.target.value);
+                    if (formError !== null) {
+                      setFormError(null);
+                    }
+                  }}
+                  maxLength={60}
+                  autoComplete="given-name"
+                />
+                <button type="submit" className="btn btn-primary">
+                  Go
+                </button>
+              </div>
+
+              {matchingCandidates.length > 0 && (
+                <div className="home-suggestions-list" role="listbox">
+                  {matchingCandidates.map((cand) => {
+                    const timeline = resolveTeamMatchTimeline(
+                      cand.team.id,
+                      state.matches,
+                      state.teams,
+                    );
+                    let matchSummary = "En attente du tirage";
+                    if (timeline.currentMatch !== null) {
+                      let oppName = "À déterminer";
+                      if (timeline.opponent !== null) {
+                        oppName = formatPlayersPrimaryName(
+                          timeline.opponent.player1Name,
+                          timeline.opponent.player2Name,
+                        );
+                      }
+                      matchSummary = `T${timeline.currentMatch.tableNumber ?? "–"} · vs ${oppName} (${formatQuickPhaseLabel(timeline.currentMatch)})`;
+                    }
+
+                    return (
+                      <button
+                        key={cand.team.id}
+                        type="button"
+                        className="home-suggestion-item"
+                        onClick={() => openTeamDirectly(cand.team.id)}
+                      >
+                        <div style={{ minWidth: 0 }}>
+                          <div className="home-suggestion-players">
+                            {cand.playersPrimary}
+                          </div>
+                          {cand.nickname !== null && (
+                            <div className="home-suggestion-nick">
+                              « {cand.nickname} »
+                            </div>
+                          )}
+                          <div className="home-suggestion-meta">
+                            {matchSummary}
+                          </div>
+                        </div>
+                        <ArrowRightIcon size={16} />
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+
+              {formError !== null && (
+                <p className="home-firstname-error" role="alert">
+                  {formError}
+                </p>
+              )}
+            </form>
+
+            <nav className="home-minimal-links" aria-label="Accès rapides">
+              <Link href="/ma-table" className="home-nav-primary">
+                <TableCardsIcon size={16} />
+                <span>Ma table</span>
+              </Link>
+              <Link href="/classement" className="home-nav-ghost">
+                <TrophyIcon size={15} />
+                <span>Poules &amp; Arbre</span>
+              </Link>
+              <Link href="/live" className="home-nav-ghost">
+                <ProjectorScreenIcon size={15} />
+                <span>Projecteur /live</span>
+              </Link>
+              <Link href="/admin" className="home-nav-ghost">
+                <LockIcon size={14} />
+                <span>Admin</span>
+              </Link>
+            </nav>
           </div>
 
-          <div className="poster-image-wrap">
-            <img
-              src={activePosterUrl}
-              alt="Affiche officielle de la soirée Coinch'Eirb"
-              className="poster-image"
-            />
-          </div>
-
-          <figcaption className="poster-footer">
-            <span>Coinch&apos;Eirb · ENSEIRB-MATMECA</span>
-            <span className="suits-strip" aria-hidden="true">
-              <ClubSuitIcon size={13} />
-              <DiamondSuitIcon size={13} style={{ color: "#C8342B" }} />
-              <SpadeSuitIcon size={13} />
-              <HeartSuitIcon size={13} style={{ color: "#C8342B" }} />
-            </span>
-          </figcaption>
-        </figure>
+          <figure className="home-poster-card">
+            <div className="home-poster-img-wrap">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={activePosterUrl}
+                alt="Affiche de la soirée Coinch'Eirb"
+                className="home-poster-img"
+              />
+            </div>
+          </figure>
+        </div>
       </section>
 
-      <section className="home-facts" aria-label="Repères du tournoi">
-        <article className="fact-row">
-          <span className="fact-icon">
-            <ClockIcon size={18} />
-          </span>
-          <div>
-            <h2 className="fact-title">Poules automatiques en 5 donnes</h2>
-            <p className="fact-desc">
-              Chaque match de poule se ferme tout seul après 5 donnes (+ 6e
-              donne si égalité), puis débloque automatiquement la suite.
-            </p>
-          </div>
-        </article>
+      {/* PELLICULE PHOTOS RÉELLES & VAINQUEURS */}
+      <section className="home-photo-wall" aria-label="Ambiance et vainqueurs">
+        <figure className="home-photo-tile home-photo-winner">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={activeWinnerPhoto}
+            alt={activeWinnerCaption}
+            className="home-photo-img"
+          />
+          <figcaption className="home-photo-cap">
+            <TrophyIcon size={14} />
+            <span>{activeWinnerCaption}</span>
+          </figcaption>
+        </figure>
 
-        <article className="fact-row">
-          <span className="fact-icon">
-            <TableCardsIcon size={18} />
-          </span>
-          <div>
-            <h2 className="fact-title">1 téléphone par table</h2>
-            <p className="fact-desc">
-              Saisie directe après chaque donne, mode score final direct et
-              annonces manuelles Capot, Générale, Coinche et Surcoinche vers{" "}
-              <strong>/live</strong>.
-            </p>
-          </div>
-        </article>
+        <figure className="home-photo-tile">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src="/assets/media/soiree-foyer-bar.jpg"
+            alt="Soirée coinche au Foyer de l'ENSEIRB-MATMECA"
+            className="home-photo-img"
+          />
+          <figcaption className="home-photo-cap">
+            <span>Au Foyer</span>
+          </figcaption>
+        </figure>
 
-        <article className="fact-row">
-          <span className="fact-icon">
-            <TrophyIcon size={18} />
-          </span>
-          <div>
-            <h2 className="fact-title">Arbre final généré automatiquement</h2>
-            <p className="fact-desc">
-              Dès que tous les matchs de poule sont terminés, les Huitièmes (500
-              pts), Quarts (600), Demies (700) et Finale (1000) se lancent
-              automatiquement.
-            </p>
-          </div>
-        </article>
+        <figure className="home-photo-tile">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src="/assets/media/soiree-table-cartes.jpg"
+            alt="Table en jeu durant le tournoi Coinch'Eirb"
+            className="home-photo-img"
+          />
+          <figcaption className="home-photo-cap">
+            <span>5 donnes · Sans pitié</span>
+          </figcaption>
+        </figure>
+
+        <figure className="home-photo-tile">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src="/assets/media/meme-voulez-vous-coincher.jpg"
+            alt="Voulez-vous coincher avec moi ce soir"
+            className="home-photo-img"
+          />
+          <figcaption className="home-photo-cap">
+            <span>Voulez-vous coincher ?</span>
+          </figcaption>
+        </figure>
       </section>
     </div>
   );

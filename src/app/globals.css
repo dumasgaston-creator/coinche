@@ -582,8 +582,347 @@ a {
 }
 
 /* ==========================================================================
-   Page d'accueil (Héros + Affiche dynamique)
+   Page d'accueil éditoriale (Hero photo + Affiche + Pellicule club)
    ========================================================================== */
+
+.home-editorial-hero {
+  position: relative;
+  border-radius: 16px;
+  overflow: hidden;
+  border: 1px solid rgba(232, 166, 40, 0.34);
+  background-color: #161210;
+  color: #f7f2e8;
+}
+
+.home-hero-bg-wrap {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+}
+
+.home-hero-bg-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center 45%;
+  opacity: 0.34;
+  filter: contrast(1.1) saturate(0.95);
+}
+
+.home-hero-bg-scrim {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    120deg,
+    rgba(22, 18, 16, 0.94) 0%,
+    rgba(22, 18, 16, 0.78) 55%,
+    rgba(22, 18, 16, 0.9) 100%
+  );
+}
+
+.home-editorial-inner {
+  position: relative;
+  z-index: 1;
+  padding: 20px 16px;
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 20px;
+  align-items: center;
+}
+
+.home-editorial-left {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 0;
+}
+
+.home-brand-stamp {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.home-brand-crest {
+  width: 44px;
+  height: 44px;
+  border-radius: 999px;
+  object-fit: cover;
+  border: 2px solid #e8a628;
+}
+
+.home-brand-kicker {
+  font-size: 11.5px;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #e8a628;
+}
+
+.home-editorial-title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: clamp(44px, 11vw, 72px);
+  line-height: 0.9;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: #f7f2e8;
+}
+
+.home-resume-strip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
+  padding: 10px 14px;
+  border-radius: 10px;
+  border: 1px solid #e8a628;
+  background-color: rgba(232, 166, 40, 0.14);
+  color: #f7f2e8;
+  cursor: pointer;
+}
+
+.home-resume-label {
+  display: block;
+  font-size: 10.5px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #e8a628;
+}
+
+.home-resume-players {
+  display: block;
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 22px;
+  line-height: 1.05;
+  text-transform: uppercase;
+}
+
+.home-resume-sub {
+  display: block;
+  font-size: 12px;
+  color: #dfd4c0;
+}
+
+.home-firstname-form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.home-firstname-label {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: #dfd4c0;
+}
+
+.home-firstname-input {
+  width: 100%;
+  min-height: 48px;
+  padding: 0 14px;
+  border-radius: 10px;
+  border: 1px solid rgba(247, 242, 232, 0.25);
+  background-color: rgba(22, 18, 16, 0.78);
+  color: #f7f2e8;
+  font-size: 15px;
+}
+
+.home-firstname-input::placeholder {
+  color: #9a8c7e;
+}
+
+.home-firstname-input:focus {
+  outline: none;
+  border-color: #e8a628;
+}
+
+.home-suggestions-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.home-suggestion-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(232, 166, 40, 0.35);
+  background-color: rgba(34, 27, 23, 0.94);
+  color: #f7f2e8;
+  text-align: left;
+  cursor: pointer;
+}
+
+.home-suggestion-players {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 19px;
+  line-height: 1.05;
+  text-transform: uppercase;
+}
+
+.home-suggestion-nick {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: #e8c78a;
+}
+
+.home-suggestion-meta {
+  font-size: 12px;
+  color: #cbbeb0;
+}
+
+.home-firstname-error {
+  margin: 0;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #f28b85;
+}
+
+.home-minimal-links {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding-top: 4px;
+}
+
+.home-nav-primary {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 40px;
+  padding: 0 14px;
+  border-radius: 8px;
+  background-color: #e8a628;
+  color: #161210;
+  font-weight: 800;
+  font-size: 13px;
+}
+
+.home-nav-ghost {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 40px;
+  padding: 0 12px;
+  border-radius: 8px;
+  border: 1px solid rgba(247, 242, 232, 0.22);
+  background-color: rgba(22, 18, 16, 0.55);
+  color: #f7f2e8;
+  font-weight: 700;
+  font-size: 12.5px;
+}
+
+.home-nav-ghost:hover {
+  border-color: #e8a628;
+  color: #e8a628;
+}
+
+.home-poster-card {
+  margin: 0;
+  border-radius: 12px;
+  overflow: hidden;
+  border: 2px solid rgba(232, 166, 40, 0.5);
+  background-color: #161210;
+  max-width: 340px;
+  width: 100%;
+  justify-self: center;
+}
+
+.home-poster-img-wrap {
+  width: 100%;
+  aspect-ratio: 1 / 1;
+}
+
+.home-poster-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+/* Pellicule photos réelles Coinch'Eirb */
+.home-photo-wall {
+  margin-top: 16px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.home-photo-tile {
+  margin: 0;
+  position: relative;
+  border-radius: 12px;
+  overflow: hidden;
+  border: 1px solid var(--border-strong);
+  background-color: #161210;
+  aspect-ratio: 4 / 3;
+}
+
+.home-photo-winner {
+  grid-column: span 2;
+  aspect-ratio: 16 / 10;
+  border-color: var(--accent-amber);
+}
+
+.home-photo-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center 25%;
+  display: block;
+}
+
+.home-photo-cap {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: 20px 12px 9px;
+  background: linear-gradient(
+    to top,
+    rgba(22, 18, 16, 0.92) 0%,
+    rgba(22, 18, 16, 0) 100%
+  );
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 16px;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: #f7f2e8;
+}
+
+@media (min-width: 820px) {
+  .home-editorial-inner {
+    grid-template-columns: 1.2fr 0.8fr;
+    padding: 28px 30px;
+  }
+
+  .home-photo-wall {
+    grid-template-columns: 1.4fr 1fr 1fr 1fr;
+    gap: 12px;
+  }
+
+  .home-photo-winner {
+    grid-column: span 1;
+    aspect-ratio: 4 / 3;
+  }
+}
 
 .home-hero-grid {
   display: grid;

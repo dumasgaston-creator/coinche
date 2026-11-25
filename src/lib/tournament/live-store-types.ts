@@ -128,6 +128,8 @@ export interface UnifiedTournamentMeta {
   posterUrl: string;
   posterMimeLabel: string;
   posterSizeLabel: string;
+  winnerPhotoUrl?: string;
+  winnerPhotoCaption?: string;
 }
 
 export interface UnifiedTournamentState {
@@ -268,24 +270,73 @@ const SEED_TEAMS_DATA: ReadonlyArray<{
   { shortCode: "E04", teamName: "Impasse Maître", player1Name: "Damien Marchand", player2Name: "Lucie Prévost", promotionLabel: "1A Élec" },
 ];
 
-function buildSeedTeams(checkedInByDefault: boolean): UnifiedTeamRecord[] {
-  return SEED_TEAMS_DATA.map((seed, index) => {
-    const cleanName = sanitizePlainName(seed.teamName);
-    return {
-      id: `team-${String(index + 1).padStart(2, "0")}`,
-      shortCode: seed.shortCode,
-      teamName: cleanName,
-      normalizedName: normalizeComparisonKey(cleanName),
-      player1Name: sanitizePlainName(seed.player1Name),
-      player2Name: sanitizePlainName(seed.player2Name),
-      promotionLabel: seed.promotionLabel,
-      checkedIn: checkedInByDefault,
-      isForfeit: false,
-      seedOrder: index + 1,
-      player1LinkedAccount: null,
-      player2LinkedAccount: null,
-    };
-  });
+function buildSeedTeams(
+  checkedInByDefault: boolean,
+  requestedCount: number = 20,
+): UnifiedTeamRecord[] {
+  const safeCount = Math.max(4, Math.min(64, Math.trunc(requestedCount)));
+  const extraPlayers: ReadonlyArray<[string, string]> = [
+    ["Angèle", "Kamila"],
+    ["Chahe", "Antonin"],
+    ["Elie", "Naël"],
+    ["Nico", "br7"],
+    ["Lenny", "Dona"],
+    ["Martin", "Ulysse"],
+    ["Sacha", "Benoit"],
+    ["Matís", "Timeo"],
+    ["Philo", "Maxime"],
+    ["Bely", "Thib"],
+    ["Lelio", "Arnaud"],
+    ["Puff", "Baptiste"],
+  ];
+
+  const list: UnifiedTeamRecord[] = [];
+  for (let index = 0; index < safeCount; index += 1) {
+    const seed = SEED_TEAMS_DATA[index];
+    if (seed !== undefined) {
+      const cleanName = sanitizePlainName(seed.teamName);
+      list.push({
+        id: `team-${String(index + 1).padStart(2, "0")}`,
+        shortCode: seed.shortCode,
+        teamName: cleanName,
+        normalizedName: normalizeComparisonKey(cleanName),
+        player1Name: sanitizePlainName(seed.player1Name),
+        player2Name: sanitizePlainName(seed.player2Name),
+        promotionLabel: seed.promotionLabel,
+        checkedIn: checkedInByDefault,
+        isForfeit: false,
+        seedOrder: index + 1,
+        player1LinkedAccount: null,
+        player2LinkedAccount: null,
+      });
+    } else {
+      const extraIdx = (index - SEED_TEAMS_DATA.length) % extraPlayers.length;
+      const pair = extraPlayers[extraIdx] ?? ["Joueur A", "Joueur B"];
+      const suffix = index + 1;
+      let p1 = pair[0];
+      let p2 = pair[1];
+      if (index - SEED_TEAMS_DATA.length >= extraPlayers.length) {
+        p1 = `${pair[0]} ${suffix}`;
+        p2 = `${pair[1]} ${suffix}`;
+      }
+      const autoName = formatPlayersPrimaryName(p1, p2);
+      list.push({
+        id: `team-${String(suffix).padStart(2, "0")}`,
+        shortCode: `EQ${String(suffix).padStart(2, "0")}`,
+        teamName: autoName,
+        normalizedName: normalizeComparisonKey(autoName),
+        player1Name: p1,
+        player2Name: p2,
+        promotionLabel: "ENSEIRB-MATMECA",
+        checkedIn: checkedInByDefault,
+        isForfeit: false,
+        seedOrder: suffix,
+        player1LinkedAccount: null,
+        player2LinkedAccount: null,
+      });
+    }
+  }
+  return list;
 }
 
 function buildDefaultTournamentMeta(status: TournamentStatus, locked: boolean): UnifiedTournamentMeta {
@@ -308,6 +359,8 @@ function buildDefaultTournamentMeta(status: TournamentStatus, locked: boolean): 
     posterUrl: "/assets/affiche-soiree.jpg",
     posterMimeLabel: "image/jpeg",
     posterSizeLabel: "Affiche officielle",
+    winnerPhotoUrl: "/assets/media/vainqueur-precedent.jpg",
+    winnerPhotoCaption: "Derniers vainqueurs · Coinch'Eirb",
   };
 }
 
@@ -355,9 +408,11 @@ const COMPLETED_DEMO_DEAL_PATTERNS: ReadonlyArray<ReadonlyArray<[number, number,
  * - Tour 3 en cours aux tables 1 a 10 (2 donnes jouees sur 5) pour pouvoir saisir
  *   immediatement des points sur `/ma-table` et voir les poules et l'arbre bouger en direct.
  */
-export function createDefaultUnifiedTournamentState(): UnifiedTournamentState {
+export function createDefaultUnifiedTournamentState(
+  teamCount: number = 20,
+): UnifiedTournamentState {
   const tournament = buildDefaultTournamentMeta("pools", true);
-  const teams = buildSeedTeams(true);
+  const teams = buildSeedTeams(true, teamCount);
   const plan = generatePoolsAndSchedule(teams, {
     dealsPerMatch: tournament.dealsPerPoolMatch,
     startsAtTimeLabel: tournament.startsAtLabel,

@@ -7,6 +7,10 @@ import {
 } from "@/components/live/demo-data";
 import { animateLiveViewEnter } from "@/components/live/gsap-engine";
 import { subscribeToLiveChannels } from "@/components/live/live-data-source";
+import {
+  readSoundEnabledPreference,
+  writeSoundEnabledPreference,
+} from "@/components/live/sound-engine";
 import { LiveTopBar } from "@/components/live/LiveTopBar";
 import { LivePopupOverlay } from "@/components/live/LivePopupOverlay";
 import { PoolsView } from "@/components/live/PoolsView";
@@ -89,16 +93,32 @@ function buildLiveSnapshotFromUnifiedStore(
 
   let wildcardCandidates: LiveTournamentSnapshot["wildcardCandidates"] = [];
   let wildcardSlotsAvailable = 1;
+  let wildcardRank: number | null = 4;
+  let directTopRank = 3;
   if (summary.qualification !== null) {
     wildcardCandidates = summary.qualification.wildcardCandidatesRanked;
-    const directCount = summary.qualification.qualifiedTeams.filter(
+    wildcardRank = summary.qualification.wildcardRank;
+    const directTeams = summary.qualification.qualifiedTeams.filter(
       (q) => q.qualificationReason === "direct_top_n",
-    ).length;
+    );
     wildcardSlotsAvailable = Math.max(
       0,
-      summary.qualification.format.qualifierCount - directCount,
+      summary.qualification.format.qualifierCount - directTeams.length,
     );
+    let maxDirectRank = 0;
+    for (const dt of directTeams) {
+      if (dt.poolRank > maxDirectRank) {
+        maxDirectRank = dt.poolRank;
+      }
+    }
+    if (maxDirectRank > 0) {
+      directTopRank = maxDirectRank;
+    }
   }
+
+  const totalActiveTeams = state.teams.filter(
+    (t) => t.checkedIn && !t.isForfeit,
+  ).length;
 
   const prioritizedMatches = [...state.matches]
     .filter((m) => m.tableNumber !== null && m.status !== "bye")
@@ -241,11 +261,19 @@ function buildLiveSnapshotFromUnifiedStore(
     phaseLabel: formatStatusPhaseLabel(state.tournament.status),
     startTimeLabel: `1er tour à ${state.tournament.startsAtLabel}`,
     posterUrl: state.tournament.posterUrl,
+    winnerPhotoUrl:
+      state.tournament.winnerPhotoUrl ?? "/assets/media/vainqueur-precedent.jpg",
+    winnerPhotoCaption:
+      state.tournament.winnerPhotoCaption ?? "Derniers vainqueurs · Coinch'Eirb",
     dealsPerPoolMatch: state.tournament.dealsPerPoolMatch,
     roundOf16Threshold: state.tournament.roundOf16Threshold,
     poolStandings: summary.poolStandings,
     wildcardCandidates,
     wildcardSlotsAvailable,
+    wildcardRank,
+    directTopRank,
+    totalActiveTeams,
+    qualifiedLookup: summary.qualifiedLookup,
     activeMatches,
     bracketMatches,
     teamDisplayById,
@@ -286,7 +314,20 @@ export function LiveProjectorApp() {
   }, []);
   const [elapsedMs, setElapsedMs] = useState<number>(0);
   const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
+  const [soundEnabled, setSoundEnabled] = useState<boolean>(false);
   const [fullscreenNotice, setFullscreenNotice] = useState<string | null>(null);
+
+  useEffect(() => {
+    setSoundEnabled(readSoundEnabledPreference());
+  }, []);
+
+  const handleToggleSound = useCallback(() => {
+    setSoundEnabled((prev) => {
+      const next = !prev;
+      writeSoundEnabledPreference(next);
+      return next;
+    });
+  }, []);
 
   const [popupQueue, setPopupQueue] = useState<LiveAnnouncementEvent[]>([]);
   const [activePopup, setActivePopup] =
@@ -499,11 +540,50 @@ export function LiveProjectorApp() {
     };
   }, [handleSelectSlide, handleTogglePause, stepSlide]);
 
+  const handleTriggerFirstDealPopup = useCallback(() => {
+    const id = `first-deal-${Date.now()}`;
+    enqueueAnnouncement({
+      queueKey: `${id}:announced:first_deal`,
+      id,
+      tableNumber: 1,
+      teamName: "Toutes les tables",
+      opponentName: null,
+      announcementType: "coinche",
+      phase: "announced",
+      pointsAwarded: null,
+      contractNote: "Bon tournoi Coinch'Eirb !",
+      createdAt: new Date().toISOString(),
+      specialKind: "first_deal",
+      customHeadline: "PREMIÈRE DONNE !",
+      customBadge: "COUP D'ENVOI · COINCH'EIRB",
+    });
+  }, [enqueueAnnouncement]);
+
   const handleSimulateAnnouncement = useCallback(() => {
     const idx = simScenarioIdxRef.current;
     const counter = simCounterRef.current;
     simScenarioIdxRef.current += 1;
     simCounterRef.current += 1;
+
+    if (idx % 3 === 2) {
+      const elimId = `sim-elim-${Date.now()}-${counter}`;
+      enqueueAnnouncement({
+        queueKey: `${elimId}:failed:elimination`,
+        id: elimId,
+        tableNumber: 2,
+        teamName: "Chahe / Antonin",
+        opponentName: "Angèle / Kamila",
+        announcementType: "coinche",
+        phase: "failed",
+        pointsAwarded: 500,
+        contractNote: "Sortis 380 – 520 en Huitième",
+        createdAt: new Date().toISOString(),
+        specialKind: "elimination",
+        customHeadline: "CAPRI-SEUM !",
+        customBadge: "ÉLIMINÉS EN HUITIÈME (500 PTS)",
+      });
+      return;
+    }
 
     const pair = buildSimulatedAnnouncementEvents(idx, counter);
     enqueueAnnouncement(pair.announcedEvent);
@@ -515,6 +595,30 @@ export function LiveProjectorApp() {
   }, [enqueueAnnouncement]);
 
   const currentSlide = findSlideById(activeSlideId);
+  let dynamicSlideTitle = currentSlide.title;
+  let dynamicSlideSubtitle = currentSlide.subtitle;
+  const activeRankNum = snapshot.wildcardRank ?? 4;
+  const activeDirectTop = snapshot.directTopRank ?? 3;
+  const totalTeamsCount = snapshot.totalActiveTeams ?? 20;
+
+  if (activeSlideId === "pools") {
+    let wildcardPiece = "";
+    if (snapshot.wildcardSlotsAvailable > 0 && snapshot.wildcardRank !== null) {
+      if (snapshot.wildcardSlotsAvailable === 1) {
+        wildcardPiece = ` + 1 meilleur ${activeRankNum}e`;
+      } else {
+        wildcardPiece = ` + ${snapshot.wildcardSlotsAvailable} meilleurs ${activeRankNum}es`;
+      }
+    }
+    dynamicSlideSubtitle = `${totalTeamsCount} équipes · ${snapshot.poolStandings.length} poules · Top ${activeDirectTop}${wildcardPiece} qualifiés`;
+  } else if (activeSlideId === "best_fourths") {
+    dynamicSlideTitle = `Course aux meilleurs ${activeRankNum}es`;
+    let ticketWord = "billet qualificatif";
+    if (snapshot.wildcardSlotsAvailable > 1) {
+      ticketWord = "billets qualificatifs";
+    }
+    dynamicSlideSubtitle = `${snapshot.wildcardSlotsAvailable} ${ticketWord} · Départage par points marqués puis force de la poule`;
+  }
   const progressPercent = Math.min(
     100,
     Math.round((elapsedMs / SLIDE_DURATION_MS) * 100),
@@ -535,6 +639,7 @@ export function LiveProjectorApp() {
         connectionMode={connectionMode}
         isPaused={isPaused}
         isFullscreen={isFullscreen}
+        soundEnabled={soundEnabled}
         fullscreenNotice={fullscreenNotice}
         queuedCount={popupQueue.length}
         hasActivePopup={activePopup !== null}
@@ -543,6 +648,8 @@ export function LiveProjectorApp() {
         onStepSlide={stepSlide}
         onTogglePause={handleTogglePause}
         onToggleFullscreen={handleToggleFullscreen}
+        onToggleSound={handleToggleSound}
+        onTriggerFirstDealPopup={handleTriggerFirstDealPopup}
         onSimulateAnnouncement={handleSimulateAnnouncement}
       />
 
@@ -553,9 +660,9 @@ export function LiveProjectorApp() {
               Écran {currentSlide.index + 1} / {LIVE_SLIDES.length} ·{" "}
               {snapshot.tournamentTitle}
             </span>
-            <h1 className="live-slide-title">{currentSlide.title}</h1>
+            <h1 className="live-slide-title">{dynamicSlideTitle}</h1>
           </div>
-          <p className="live-slide-subtitle">{currentSlide.subtitle}</p>
+          <p className="live-slide-subtitle">{dynamicSlideSubtitle}</p>
         </div>
 
         <div ref={stageRef} key={activeSlideId} className="live-stage-viewport">
@@ -563,6 +670,9 @@ export function LiveProjectorApp() {
             <PoolsView
               pools={snapshot.poolStandings}
               wildcardCandidates={snapshot.wildcardCandidates}
+              qualifiedLookup={snapshot.qualifiedLookup}
+              directTopRank={snapshot.directTopRank}
+              wildcardRank={snapshot.wildcardRank}
               teamDisplayById={snapshot.teamDisplayById}
             />
           )}
@@ -571,6 +681,8 @@ export function LiveProjectorApp() {
             <BestFourthsView
               candidates={snapshot.wildcardCandidates}
               wildcardSlotsAvailable={snapshot.wildcardSlotsAvailable}
+              wildcardRank={snapshot.wildcardRank}
+              directTopRank={snapshot.directTopRank}
               teamDisplayById={snapshot.teamDisplayById}
             />
           )}
@@ -583,6 +695,7 @@ export function LiveProjectorApp() {
             <BracketView
               matches={snapshot.bracketMatches}
               posterUrl={snapshot.posterUrl}
+              winnerPhotoUrl={snapshot.winnerPhotoUrl}
               tournamentTitle={snapshot.tournamentTitle}
             />
           )}
@@ -590,6 +703,8 @@ export function LiveProjectorApp() {
           {activeSlideId === "poster" && (
             <PosterView
               posterUrl={snapshot.posterUrl}
+              winnerPhotoUrl={snapshot.winnerPhotoUrl}
+              winnerPhotoCaption={snapshot.winnerPhotoCaption}
               tournamentTitle={snapshot.tournamentTitle}
               startTimeLabel={snapshot.startTimeLabel}
             />
@@ -626,6 +741,8 @@ export function LiveProjectorApp() {
         <LivePopupOverlay
           event={activePopup}
           queuedCount={popupQueue.length}
+          winnerPhotoUrl={snapshot.winnerPhotoUrl}
+          soundEnabled={soundEnabled}
           onComplete={handlePopupComplete}
         />
       )}

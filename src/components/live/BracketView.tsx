@@ -7,6 +7,7 @@ import { CheckIcon, SpadeSuitIcon, TrophyIcon } from "@/components/icons/Icons";
 interface BracketViewProps {
   matches: LiveBracketMatchView[];
   posterUrl?: string;
+  winnerPhotoUrl?: string;
   tournamentTitle?: string;
 }
 
@@ -320,6 +321,14 @@ export function BracketView(props: BracketViewProps) {
 
                               {isFinalCol && championPlayers !== null && (
                                 <div className="live-champion-banner">
+                                  {props.winnerPhotoUrl !== undefined && (
+                                    /* eslint-disable-next-line @next/next/no-img-element */
+                                    <img
+                                      src={props.winnerPhotoUrl}
+                                      alt="Photo des vainqueurs Coinch'Eirb"
+                                      className="live-champion-photo"
+                                    />
+                                  )}
                                   <span className="live-champion-eyebrow">
                                     <TrophyIcon size={14} />
                                     <span>Vainqueurs de la soirée</span>

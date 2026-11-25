@@ -71,6 +71,12 @@ export interface LiveBracketMatchView {
   winnerTeamId: string | null;
 }
 
+export type LiveSpecialPopupKind =
+  | "announcement"
+  | "elimination"
+  | "champion"
+  | "first_deal";
+
 export interface LiveAnnouncementEvent {
   queueKey: string;
   id: string;
@@ -82,6 +88,9 @@ export interface LiveAnnouncementEvent {
   pointsAwarded: number | null;
   contractNote: string | null;
   createdAt: string;
+  specialKind?: LiveSpecialPopupKind;
+  customHeadline?: string | null;
+  customBadge?: string | null;
 }
 
 export interface LiveTournamentSnapshot {
@@ -91,11 +100,17 @@ export interface LiveTournamentSnapshot {
   phaseLabel: string;
   startTimeLabel: string;
   posterUrl: string;
+  winnerPhotoUrl?: string;
+  winnerPhotoCaption?: string;
   dealsPerPoolMatch: number;
   roundOf16Threshold: number;
   poolStandings: PoolStandingSummary[];
   wildcardCandidates: QualifiedTeamSeed[];
   wildcardSlotsAvailable: number;
+  wildcardRank?: number | null;
+  directTopRank?: number;
+  totalActiveTeams?: number;
+  qualifiedLookup?: Record<string, QualifiedTeamSeed>;
   activeMatches: LiveTableMatchItem[];
   bracketMatches: LiveBracketMatchView[];
   teamDisplayById?: Record<string, LiveTeamDisplayInfo>;
