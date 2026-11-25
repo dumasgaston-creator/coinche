@@ -13,7 +13,11 @@ export type BuiltinSoundPresetId =
   | "mlg_airhorn"
   | "sad_trombone"
   | "victory_fanfare"
-  | "bruh_drop";
+  | "bruh_drop"
+  | "oof_drop"
+  | "siren_alert"
+  | "sigma_bass"
+  | "cartoon_boing";
 
 export interface BuiltinSoundPresetMeta {
   id: BuiltinSoundPresetId;
@@ -26,15 +30,29 @@ export const BUILTIN_SOUND_PRESETS: readonly BuiltinSoundPresetMeta[] = [
   { id: "mlg_airhorn", label: "MLG Airhorn (x3)" },
   { id: "sad_trombone", label: "Trombone Capri-Seum" },
   { id: "bruh_drop", label: "Bruh / Impact" },
+  { id: "oof_drop", label: "Oof / Chute sèche" },
+  { id: "siren_alert", label: "Sirène Alerte Coinche" },
+  { id: "sigma_bass", label: "Sigma Phonk Basse" },
+  { id: "cartoon_boing", label: "Boing Cartoon" },
   { id: "victory_fanfare", label: "Fanfare Champions" },
 ];
 
 export interface CustomSoundEntry {
+  id?: string;
+  fileName: string;
+  dataUrl: string;
+}
+
+export interface CustomSoundClip {
+  id: string;
   fileName: string;
   dataUrl: string;
 }
 
 export type CustomSoundsMap = Partial<Record<LiveSoundSlot, CustomSoundEntry>>;
+export type CustomSoundBankMap = Partial<
+  Record<LiveSoundSlot, CustomSoundClip[]>
+>;
 export type SoundPresetPrefsMap = Partial<
   Record<LiveSoundSlot, BuiltinSoundPresetId>
 >;
@@ -42,6 +60,8 @@ export type SoundPresetPrefsMap = Partial<
 const SOUND_ENABLED_KEY = "coincheirb-live-sound-enabled";
 const CUSTOM_SOUNDS_KEY = "coincheirb-live-custom-sounds-v1";
 const PRESET_PREFS_KEY = "coincheirb-live-sound-presets-v1";
+
+const lastClipIdBySlot: Partial<Record<LiveSoundSlot, string>> = {};
 
 const DEFAULT_SLOT_PRESETS: Record<LiveSoundSlot, BuiltinSoundPresetId> = {
   announce: "vine_boom",
@@ -98,7 +118,58 @@ export function writeSoundEnabledPreference(enabled: boolean): void {
   }
 }
 
-export function readCustomSounds(): CustomSoundsMap {
+function normalizeSoundClips(rawValue: unknown): CustomSoundClip[] {
+  if (Array.isArray(rawValue)) {
+    const out: CustomSoundClip[] = [];
+    for (let i = 0; i < rawValue.length; i += 1) {
+      const item = rawValue[i];
+      if (typeof item === "object" && item !== null) {
+        const record = item as Partial<CustomSoundClip>;
+        if (
+          typeof record.fileName === "string" &&
+          typeof record.dataUrl === "string" &&
+          record.dataUrl.length > 0
+        ) {
+          let clipId = `clip-${i}-${record.fileName}`;
+          if (typeof record.id === "string" && record.id.length > 0) {
+            clipId = record.id;
+          }
+          out.push({
+            id: clipId,
+            fileName: record.fileName,
+            dataUrl: record.dataUrl,
+          });
+        }
+      }
+    }
+    return out;
+  }
+
+  if (typeof rawValue === "object" && rawValue !== null) {
+    const single = rawValue as Partial<CustomSoundEntry>;
+    if (
+      typeof single.fileName === "string" &&
+      typeof single.dataUrl === "string" &&
+      single.dataUrl.length > 0
+    ) {
+      let clipId = `legacy-${single.fileName}`;
+      if (typeof single.id === "string" && single.id.length > 0) {
+        clipId = single.id;
+      }
+      return [
+        {
+          id: clipId,
+          fileName: single.fileName,
+          dataUrl: single.dataUrl,
+        },
+      ];
+    }
+  }
+
+  return [];
+}
+
+export function readCustomSoundBank(): CustomSoundBankMap {
   if (typeof window === "undefined") {
     return {};
   }
@@ -108,13 +179,105 @@ export function readCustomSounds(): CustomSoundsMap {
       return {};
     }
     const parsed: unknown = JSON.parse(raw);
-    if (typeof parsed === "object" && parsed !== null) {
-      return parsed as CustomSoundsMap;
+    if (typeof parsed !== "object" || parsed === null) {
+      return {};
     }
+    const record = parsed as Record<string, unknown>;
+    const bank: CustomSoundBankMap = {};
+    const slots: LiveSoundSlot[] = [
+      "announce",
+      "passed",
+      "failed",
+      "champion",
+      "first_deal",
+    ];
+    for (const slot of slots) {
+      const clips = normalizeSoundClips(record[slot]);
+      if (clips.length > 0) {
+        bank[slot] = clips;
+      }
+    }
+    return bank;
   } catch {
-    // Ignore
+    return {};
   }
-  return {};
+}
+
+export function readCustomSounds(): CustomSoundsMap {
+  const bank = readCustomSoundBank();
+  const legacy: CustomSoundsMap = {};
+  const slots: LiveSoundSlot[] = [
+    "announce",
+    "passed",
+    "failed",
+    "champion",
+    "first_deal",
+  ];
+  for (const slot of slots) {
+    const list = bank[slot];
+    if (list !== undefined && list.length > 0) {
+      legacy[slot] = list[0];
+    }
+  }
+  return legacy;
+}
+
+function writeCustomSoundBank(bank: CustomSoundBankMap): CustomSoundBankMap {
+  if (typeof window !== "undefined") {
+    try {
+      window.localStorage.setItem(CUSTOM_SOUNDS_KEY, JSON.stringify(bank));
+    } catch {
+      throw new Error(
+        "Banque audio trop lourde pour le stockage local (visez des extraits courts < 1 Mo).",
+      );
+    }
+  }
+  return bank;
+}
+
+export function addCustomSoundClips(
+  slot: LiveSoundSlot,
+  entries: CustomSoundEntry[],
+): CustomSoundBankMap {
+  const current = readCustomSoundBank();
+  const existing = current[slot] ?? [];
+  const appended: CustomSoundClip[] = [...existing];
+  for (let i = 0; i < entries.length; i += 1) {
+    const entry = entries[i];
+    if (entry === undefined) {
+      continue;
+    }
+    let clipId = `clip-${Date.now()}-${i}-${Math.floor(Math.random() * 1000)}`;
+    if (typeof entry.id === "string" && entry.id.length > 0) {
+      clipId = entry.id;
+    }
+    appended.push({
+      id: clipId,
+      fileName: entry.fileName,
+      dataUrl: entry.dataUrl,
+    });
+  }
+  const next: CustomSoundBankMap = {
+    ...current,
+    [slot]: appended,
+  };
+  return writeCustomSoundBank(next);
+}
+
+export function removeCustomSoundClip(
+  slot: LiveSoundSlot,
+  clipId: string,
+): CustomSoundBankMap {
+  const current = readCustomSoundBank();
+  const existing = current[slot] ?? [];
+  const remaining = existing.filter((clip) => clip.id !== clipId);
+  const next: CustomSoundBankMap = { ...current };
+  if (remaining.length > 0) {
+    next[slot] = remaining;
+  } else {
+    delete next[slot];
+  }
+  return writeCustomSoundBank(next);
 }
 
 export function readSoundPresetPrefs(): SoundPresetPrefsMap {
@@ -170,35 +333,16 @@ export function saveCustomSound(
   slot: LiveSoundSlot,
   entry: CustomSoundEntry,
 ): CustomSoundsMap {
-  const current = readCustomSounds();
-  const next: CustomSoundsMap = {
-    ...current,
-    [slot]: entry,
-  };
-  if (typeof window !== "undefined") {
-    try {
-      window.localStorage.setItem(CUSTOM_SOUNDS_KEY, JSON.stringify(next));
-    } catch {
-      throw new Error(
-        "Fichier audio trop lourd pour le stockage local (visez un extrait < 1 Mo).",
-      );
-    }
-  }
-  return next;
+  addCustomSoundClips(slot, [entry]);
+  return readCustomSounds();
 }
 
 export function clearCustomSound(slot: LiveSoundSlot): CustomSoundsMap {
-  const current = readCustomSounds();
-  const next: CustomSoundsMap = { ...current };
+  const current = readCustomSoundBank();
+  const next: CustomSoundBankMap = { ...current };
   delete next[slot];
-  if (typeof window !== "undefined") {
-    try {
-      window.localStorage.setItem(CUSTOM_SOUNDS_KEY, JSON.stringify(next));
-    } catch {
-      // Ignore
-    }
-  }
-  return next;
+  writeCustomSoundBank(next);
+  return readCustomSounds();
 }
 
 function scheduleTone(
@@ -311,6 +455,32 @@ export function playBuiltinSoundPreset(presetId: BuiltinSoundPresetId): void {
     return;
   }
 
+  if (presetId === "oof_drop") {
+    scheduleTone(ctx, 310, 0.0, 0.14, "square", 0.18, 120);
+    scheduleTone(ctx, 180, 0.08, 0.22, "sawtooth", 0.2, 65);
+    return;
+  }
+
+  if (presetId === "siren_alert") {
+    scheduleTone(ctx, 640, 0.0, 0.28, "sawtooth", 0.15, 980);
+    scheduleTone(ctx, 980, 0.28, 0.28, "sawtooth", 0.15, 640);
+    scheduleTone(ctx, 640, 0.56, 0.28, "sawtooth", 0.15, 980);
+    return;
+  }
+
+  if (presetId === "sigma_bass") {
+    scheduleTone(ctx, 82.4, 0.0, 0.22, "sawtooth", 0.26, 73.4);
+    scheduleTone(ctx, 98.0, 0.24, 0.22, "sawtooth", 0.26, 82.4);
+    scheduleTone(ctx, 65.4, 0.48, 0.55, "sine", 0.38, 41.2);
+    return;
+  }
+
+  if (presetId === "cartoon_boing") {
+    scheduleTone(ctx, 160, 0.0, 0.18, "sine", 0.26, 540);
+    scheduleTone(ctx, 540, 0.18, 0.32, "sine", 0.22, 220);
+    return;
+  }
+
   if (presetId === "sad_trombone") {
     // Trombone triste façon "wah-wah-wah-waaaah"
     scheduleTone(ctx, 466.16, 0.0, 0.24, "sawtooth", 0.14);
@@ -342,16 +512,32 @@ export function playLiveSound(
     return;
   }
 
-  const customSounds = readCustomSounds();
-  const custom = customSounds[slot];
-  if (custom !== undefined && custom.dataUrl.length > 0) {
-    try {
-      const audio = new Audio(custom.dataUrl);
-      audio.volume = 0.85;
-      void audio.play();
-      return;
-    } catch {
-      // Repli vers Web Audio
+  const bank = readCustomSoundBank();
+  const clips = bank[slot];
+  if (clips !== undefined && clips.length > 0) {
+    let chosen = clips[0];
+    if (clips.length > 1) {
+      const previousId = lastClipIdBySlot[slot];
+      const eligible = clips.filter((c) => c.id !== previousId);
+      let pool = clips;
+      if (eligible.length > 0) {
+        pool = eligible;
+      }
+      const picked = pool[Math.floor(Math.random() * pool.length)];
+      if (picked !== undefined) {
+        chosen = picked;
+      }
+    }
+    if (chosen !== undefined && chosen.dataUrl.length > 0) {
+      lastClipIdBySlot[slot] = chosen.id;
+      try {
+        const audio = new Audio(chosen.dataUrl);
+        audio.volume = 0.85;
+        void audio.play();
+        return;
+      } catch {
+        // Repli vers Web Audio
+      }
     }
   }
 
