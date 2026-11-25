@@ -1,0 +1,141 @@
+/* ==========================================================================
+   Coinch'Eirb · Boîte à Memes & Photos Communautaire (/memes)
+   Photos 100% visibles (jamais rognées) · Mobile 375 px parfait.
+   ========================================================================== */
+
+.memes-shell {
+  width: 100%;
+  max-width: var(--container-desktop);
+  margin: 0 auto;
+  padding: 16px 14px 40px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.memes-hero {
+  background-color: #161210;
+  color: #f7f2e8;
+  border-radius: 14px;
+  border: 1px solid rgba(232, 166, 40, 0.38);
+  border-top: 3px solid #e8a628;
+  padding: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.memes-title {
+  margin: 4px 0 0;
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: clamp(26px, 7vw, 38px);
+  line-height: 0.96;
+  text-transform: uppercase;
+  color: #f7f2e8;
+}
+
+.memes-upload-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 14px;
+  align-items: start;
+}
+
+.memes-preview-box {
+  width: 100%;
+  min-height: 200px;
+  max-height: 280px;
+  border-radius: 10px;
+  border: 1px dashed var(--border-strong);
+  background-color: #161210;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  padding: 6px;
+}
+
+.memes-preview-img {
+  width: 100%;
+  height: auto;
+  max-height: 268px;
+  object-fit: contain;
+  display: block;
+}
+
+.memes-filter-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.memes-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+}
+
+.meme-card {
+  margin: 0;
+  background-color: var(--bg-surface);
+  border: 1px solid var(--border-strong);
+  border-radius: 12px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.meme-card-media {
+  width: 100%;
+  height: 240px;
+  background-color: #161210;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.meme-card-img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+}
+
+.meme-card-body {
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.meme-card-caption {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 17px;
+  line-height: 1.08;
+  text-transform: uppercase;
+  color: var(--ink-primary);
+}
+
+.meme-card-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  font-size: 11.5px;
+  color: var(--ink-muted);
+}
+
+@media (min-width: 720px) {
+  .memes-upload-grid {
+    grid-template-columns: 0.9fr 1.1fr;
+  }
+
+  .memes-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}

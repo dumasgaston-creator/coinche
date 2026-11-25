@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import type { AnnouncementType } from "@/types/database";
 import { playLivePopupTimeline } from "@/components/live/gsap-engine";
 import {
@@ -8,6 +8,11 @@ import {
   type LiveSoundSlot,
 } from "@/components/live/sound-engine";
 import type { LiveAnnouncementEvent } from "@/components/live/types";
+import {
+  pickNonRepeatingMeme,
+  readMemeBankState,
+  type MemeCategory,
+} from "@/lib/memes/meme-bank";
 import {
   CheckIcon,
   ClubSuitIcon,
@@ -85,13 +90,6 @@ function resolvePopupMedia(
       caption: "Coup d'envoi · Première donne",
     };
   }
-  if (event.specialKind === "elimination") {
-    return {
-      src: "/assets/media/meme-capri-seum.jpg",
-      kind: "image",
-      caption: "Capri-Seum · Le bon goût de la défaite",
-    };
-  }
   if (event.specialKind === "champion") {
     return {
       src: winnerPhotoUrl,
@@ -99,48 +97,32 @@ function resolvePopupMedia(
       caption: "Champions Coinch'Eirb",
     };
   }
-  if (event.phase === "failed") {
+
+  let memeCategory: MemeCategory = "coinche";
+  if (event.specialKind === "elimination") {
+    memeCategory = "elimination";
+  } else if (event.phase === "failed") {
+    memeCategory = "chute";
+  } else if (event.announcementType === "generale") {
+    memeCategory = "generale";
+  } else if (event.announcementType === "capot") {
+    memeCategory = "capot";
+  }
+
+  const bank = readMemeBankState();
+  const picked = pickNonRepeatingMeme(bank.items, memeCategory);
+  if (picked !== null) {
     return {
-      src: "/assets/media/meme-capri-seum.jpg",
+      src: picked.imageUrl,
       kind: "image",
-      caption: "Contrat chuté · Capri-Seum",
+      caption: picked.caption,
     };
   }
-  if (event.announcementType === "generale") {
-    return {
-      src: "/assets/media/meme-generale.jpg",
-      kind: "image",
-      caption: "La main de Générale",
-    };
-  }
-  if (
-    event.announcementType === "coinche" ||
-    event.announcementType === "surcoinche"
-  ) {
-    if (event.phase === "passed") {
-      return {
-        src: "/assets/media/meme-tete-sourire.jpg",
-        kind: "image",
-        caption: "Coinche validée",
-      };
-    }
-    return {
-      src: "/assets/media/meme-voulez-vous-coincher.jpg",
-      kind: "image",
-      caption: "Voulez-vous coincher avec moi ce soir ?",
-    };
-  }
-  if (event.phase === "passed") {
-    return {
-      src: "/assets/media/meme-tete-langue.jpg",
-      kind: "image",
-      caption: "Capot passé",
-    };
-  }
+
   return {
-    src: "/assets/media/soiree-table-cartes.jpg",
+    src: "/assets/media/meme-capri-seum.jpg",
     kind: "image",
-    caption: "Annonce en cours",
+    caption: "Coinch'Eirb Live",
   };
 }
 
@@ -238,7 +220,11 @@ export function LivePopupOverlay(props: LivePopupOverlayProps) {
   ) {
     resolvedWinnerPhoto = props.winnerPhotoUrl.trim();
   }
-  const media = resolvePopupMedia(event, resolvedWinnerPhoto);
+  const media = useMemo(
+    () => resolvePopupMedia(event, resolvedWinnerPhoto),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [event.queueKey, resolvedWinnerPhoto],
+  );
 
   let cardVariantClass = "live-popup-card live-popup-announced";
   let statusBadgeIcon = <MegaphoneIcon size={18} />;
