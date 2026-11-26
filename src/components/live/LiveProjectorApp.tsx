@@ -333,7 +333,7 @@ function buildLiveSnapshotFromUnifiedStore(
     startTimeLabel: `1er tour à ${state.tournament.startsAtLabel}`,
     posterUrl: state.tournament.posterUrl,
     winnerPhotoUrl:
-      state.tournament.winnerPhotoUrl ?? "/assets/media/vainqueur-precedent.jpg",
+      state.tournament.winnerPhotoUrl ?? "/assets/vainqueurs/vainqueur-01.jpg",
     winnerPhotoCaption:
       state.tournament.winnerPhotoCaption ?? "Derniers vainqueurs · Coinch'Eirb",
     dealsPerPoolMatch: state.tournament.dealsPerPoolMatch,

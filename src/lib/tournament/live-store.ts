@@ -899,7 +899,7 @@ function formatKnockoutEliminationLabel(phase: MatchPhase): string {
  * Diffuse un pop-up special /live (Capri-Seum elimination, Champions, Premiere donne).
  */
 export function broadcastSpecialLiveEventFromStore(params: {
-  specialKind: "elimination" | "champion" | "first_deal";
+  specialKind: "elimination" | "almost_there" | "champion" | "first_deal";
   tableNumber: number;
   teamName: string;
   opponentName: string | null;
@@ -911,7 +911,10 @@ export function broadcastSpecialLiveEventFromStore(params: {
   let phase: LivePopupPhase = "announced";
   if (params.specialKind === "elimination") {
     phase = "failed";
-  } else if (params.specialKind === "champion") {
+  } else if (
+    params.specialKind === "champion" ||
+    params.specialKind === "almost_there"
+  ) {
     phase = "passed";
   }
 
@@ -983,17 +986,15 @@ function triggerAutomaticScorePopups(
     });
   }
 
-  // 2. Pop-up Capri-Seum (elimination en 8e/Quart/Demi a 500/600/700) ou Champions (Finale a 1000)
+  // 2. Pop-ups de fin de manche :
+  //    - En Poules : "TU Y ES PRESQUE !" (photo aleatoire du Dossier Vainqueurs)
+  //    - En 8e / Quart / Demi : "CAPRI-SEUM !" (elimines) + "TU Y ES PRESQUE !" (vainqueurs de la manche)
+  //    - En Finale : "CHAMPIONS COINCH'EIRB !"
   const wasFinished =
     prevMatch !== undefined && isMatchFinished(prevMatch.status);
   const isNowFinished = isMatchFinished(nextMatch.status);
 
-  if (
-    nextMatch.phase !== "pool" &&
-    !wasFinished &&
-    isNowFinished &&
-    nextMatch.winnerTeamId !== null
-  ) {
+  if (!wasFinished && isNowFinished && nextMatch.winnerTeamId !== null) {
     const teamA = findUnifiedTeam(nextState.teams, nextMatch.teamAId);
     const teamB = findUnifiedTeam(nextState.teams, nextMatch.teamBId);
     let winnerName = "Vainqueurs";
@@ -1031,7 +1032,22 @@ function triggerAutomaticScorePopups(
       }
     }
 
-    if (nextMatch.phase === "final") {
+    if (nextMatch.phase === "pool") {
+      let poolTag = `POULES · TOUR ${nextMatch.roundNumber}`;
+      if (nextMatch.poolLabel !== null) {
+        poolTag = `${nextMatch.poolLabel.toUpperCase()} · TOUR ${nextMatch.roundNumber}`;
+      }
+      broadcastSpecialLiveEventFromStore({
+        specialKind: "almost_there",
+        tableNumber: nextMatch.tableNumber ?? 1,
+        teamName: winnerName,
+        opponentName: loserName,
+        pointsAwarded: winScore,
+        customHeadline: "TU Y ES PRESQUE !",
+        customBadge: `MANCHE GAGNÉE · ${poolTag}`,
+        contractNote: `Victoire ${winScore} – ${loseScore} · En route vers le trophée`,
+      });
+    } else if (nextMatch.phase === "final") {
       broadcastSpecialLiveEventFromStore({
         specialKind: "champion",
         tableNumber: nextMatch.tableNumber ?? 1,
@@ -1054,6 +1070,34 @@ function triggerAutomaticScorePopups(
         customBadge: `ÉLIMINÉS EN ${stageTag}`,
         contractNote: `Sortis ${loseScore} – ${winScore} par ${winnerName}`,
       });
+
+      let nextStepMsg = "Qualifiés pour le tour suivant";
+      if (nextMatch.phase === "round_of_16") {
+        nextStepMsg = `Qualifiés en Quart ! (${winScore} – ${loseScore})`;
+      } else if (nextMatch.phase === "quarterfinals") {
+        nextStepMsg = `Qualifiés en Demi-finale ! (${winScore} – ${loseScore})`;
+      } else if (nextMatch.phase === "semifinals") {
+        nextStepMsg = `Direction la Grande Finale ! (${winScore} – ${loseScore})`;
+      }
+
+      const almostParams = {
+        specialKind: "almost_there" as const,
+        tableNumber: nextMatch.tableNumber ?? 1,
+        teamName: winnerName,
+        opponentName: loserName,
+        pointsAwarded: winScore,
+        customHeadline: "TU Y ES PRESQUE !",
+        customBadge: `VAINQUEURS · ${stageTag}`,
+        contractNote: nextStepMsg,
+      };
+
+      if (typeof window !== "undefined") {
+        window.setTimeout(() => {
+          broadcastSpecialLiveEventFromStore(almostParams);
+        }, 180);
+      } else {
+        broadcastSpecialLiveEventFromStore(almostParams);
+      }
     }
   }
 }

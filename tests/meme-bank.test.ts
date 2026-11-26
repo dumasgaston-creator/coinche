@@ -6,6 +6,10 @@ import {
   submitCommunityMeme,
   type CommunityMemeItem,
 } from "@/lib/memes/meme-bank";
+import {
+  createDefaultWinnersGallery,
+  pickRandomPreviousWinnerPhoto,
+} from "@/lib/memes/winners-gallery";
 
 describe("Boite a Memes communautaire & rotation anti-repetition", () => {
   it("ne rejoue jamais deux fois de suite le meme visuel dans une categorie a >= 2 memes", () => {
@@ -66,5 +70,19 @@ describe("Boite a Memes communautaire & rotation anti-repetition", () => {
         category: "coinche",
       }),
     ).toThrow();
+  });
+
+  it("tire aleatoirement une photo du Dossier Vainqueurs sans jamais repeter 2 fois de suite", () => {
+    const gallery = createDefaultWinnersGallery();
+    expect(gallery.length).toBeGreaterThanOrEqual(2);
+
+    let prevId: string | null = null;
+    for (let i = 0; i < 30; i += 1) {
+      const picked = pickRandomPreviousWinnerPhoto(gallery, prevId);
+      if (prevId !== null) {
+        expect(picked.id).not.toBe(prevId);
+      }
+      prevId = picked.id;
+    }
   });
 });

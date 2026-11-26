@@ -78,7 +78,7 @@ export function HomeView(props: HomeViewProps) {
 
   let activePosterUrl = props.posterUrl;
   let activeStart = props.startTimeLabel;
-  let activeWinnerPhoto = "/assets/media/vainqueur-precedent.jpg";
+  let activeWinnerPhoto = "/assets/vainqueurs/vainqueur-01.jpg";
   let activeWinnerCaption = "Derniers vainqueurs · Coinch'Eirb";
 
   if (hydrated) {

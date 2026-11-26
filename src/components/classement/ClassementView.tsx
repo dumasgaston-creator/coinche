@@ -681,7 +681,7 @@ export function ClassementView() {
                   winnerNames: dataset.eveningStats.podium.winner.teamName,
                   winnerPhotoUrl:
                     state.tournament.winnerPhotoUrl ??
-                    "/assets/media/vainqueur-precedent.jpg",
+                    "/assets/vainqueurs/vainqueur-01.jpg",
                   winnerScoreLabel:
                     dataset.eveningStats.podium.winner.finalScore,
                   finalistNames: dataset.eveningStats.podium.finalist.teamName,
@@ -1677,7 +1677,7 @@ export function ClassementView() {
                 <img
                   src={
                     state.tournament.winnerPhotoUrl ??
-                    "/assets/media/vainqueur-precedent.jpg"
+                    "/assets/vainqueurs/vainqueur-01.jpg"
                   }
                   alt={
                     state.tournament.winnerPhotoCaption ??

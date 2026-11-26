@@ -359,7 +359,7 @@ function buildDefaultTournamentMeta(status: TournamentStatus, locked: boolean): 
     posterUrl: "/assets/affiche-soiree.jpg",
     posterMimeLabel: "image/jpeg",
     posterSizeLabel: "Affiche officielle",
-    winnerPhotoUrl: "/assets/media/vainqueur-precedent.jpg",
+    winnerPhotoUrl: "/assets/vainqueurs/vainqueur-01.jpg",
     winnerPhotoCaption: "Derniers vainqueurs · Coinch'Eirb",
   };
 }

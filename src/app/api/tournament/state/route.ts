@@ -128,7 +128,12 @@ const syncActionSchema = z.discriminatedUnion("action", [
   z.object({
     action: z.literal("broadcast_special_event"),
     payload: z.object({
-      specialKind: z.enum(["elimination", "champion", "first_deal"]),
+      specialKind: z.enum([
+        "elimination",
+        "almost_there",
+        "champion",
+        "first_deal",
+      ]),
       tableNumber: z.number().int().min(1).max(99),
       teamName: z.string().min(1).max(120),
       opponentName: z.string().max(120).nullable(),
@@ -457,7 +462,10 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         let phase: "announced" | "passed" | "failed" = "announced";
         if (body.payload.specialKind === "elimination") {
           phase = "failed";
-        } else if (body.payload.specialKind === "champion") {
+        } else if (
+          body.payload.specialKind === "champion" ||
+          body.payload.specialKind === "almost_there"
+        ) {
           phase = "passed";
         }
         nextEvent = {

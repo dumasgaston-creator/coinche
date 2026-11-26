@@ -29,6 +29,13 @@ import {
   deleteCommunityMeme,
   setMemeModerationRequired,
 } from "@/lib/memes/meme-bank";
+import {
+  DEFAULT_LATEST_WINNER_PHOTO_URL,
+  addWinnerPhotoToGallery,
+  readWinnersGallery,
+  removeWinnerPhotoFromGallery,
+  type WinnerPhotoRecord,
+} from "@/lib/memes/winners-gallery";
 import { useMemeBankStore } from "@/lib/memes/use-meme-bank";
 import type {
   PoolStandingSummary,
@@ -116,12 +123,14 @@ export function AdminPosterAndKnockoutPanel(
   );
   const [presetPrefs, setPresetPrefs] = useState<SoundPresetPrefsMap>({});
   const [soundNotice, setSoundNotice] = useState<string | null>(null);
+  const [winnersGallery, setWinnersGallery] = useState<WinnerPhotoRecord[]>([]);
   const { bank: memeBank } = useMemeBankStore();
   const pendingMemes = memeBank.items.filter((m) => m.status === "pending");
 
   useEffect(() => {
     setCustomSoundBank(readCustomSoundBank());
     setPresetPrefs(readSoundPresetPrefs());
+    setWinnersGallery(readWinnersGallery());
   }, []);
 
   async function handlePosterFileChange(event: ChangeEvent<HTMLInputElement>) {
@@ -227,7 +236,18 @@ export function AdminPosterAndKnockoutPanel(
         winnerPhotoUrl: compressedUrl,
         winnerPhotoCaption: caption,
       });
-      setWinnerStatus("Photo des vainqueurs mise en ligne en direct !");
+      try {
+        const updatedGallery = addWinnerPhotoToGallery({
+          imageUrl: compressedUrl,
+          caption,
+        });
+        setWinnersGallery(updatedGallery);
+      } catch {
+        // Garde la photo live meme si le dossier local est plein
+      }
+      setWinnerStatus(
+        "Photo ajoutée en direct ET enregistrée dans le Dossier Vainqueurs !",
+      );
     } catch {
       setWinnerStatus("Impossible de lire cette photo.");
     }
@@ -302,7 +322,7 @@ export function AdminPosterAndKnockoutPanel(
   }
 
   const currentWinnerPhoto =
-    props.tournament.winnerPhotoUrl ?? "/assets/media/vainqueur-precedent.jpg";
+    props.tournament.winnerPhotoUrl ?? DEFAULT_LATEST_WINNER_PHOTO_URL;
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
@@ -410,6 +430,88 @@ export function AdminPosterAndKnockoutPanel(
               )}
             </div>
           </div>
+
+          {/* Mini-galerie du Dossier Vainqueurs utilisee en aleatoire pour "Tu y es presque !" */}
+          {winnersGallery.length > 0 && (
+            <div style={{ marginTop: "10px" }}>
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  gap: "6px",
+                  marginBottom: "6px",
+                }}
+              >
+                <span style={{ fontSize: "11.5px", fontWeight: 700 }}>
+                  Dossier Vainqueurs ({winnersGallery.length} photos · tirage
+                  aléatoire « Tu y es presque ! »)
+                </span>
+              </div>
+              <div
+                style={{
+                  display: "flex",
+                  gap: "8px",
+                  flexWrap: "wrap",
+                }}
+              >
+                {winnersGallery.map((item) => (
+                  <div
+                    key={item.id}
+                    style={{
+                      position: "relative",
+                      width: "68px",
+                      height: "68px",
+                      borderRadius: "6px",
+                      overflow: "hidden",
+                      border: "1px solid var(--border-strong)",
+                      backgroundColor: "#14100e",
+                    }}
+                    title={item.caption}
+                  >
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={item.imageUrl}
+                      alt={item.caption}
+                      style={{
+                        width: "100%",
+                        height: "100%",
+                        objectFit: "contain",
+                      }}
+                    />
+                    {!item.isBuiltin && (
+                      <button
+                        type="button"
+                        aria-label={`Retirer ${item.caption}`}
+                        onClick={() =>
+                          setWinnersGallery(
+                            removeWinnerPhotoFromGallery(item.id),
+                          )
+                        }
+                        style={{
+                          position: "absolute",
+                          top: "2px",
+                          right: "2px",
+                          width: "18px",
+                          height: "18px",
+                          borderRadius: "999px",
+                          border: "none",
+                          backgroundColor: "rgba(200, 52, 43, 0.9)",
+                          color: "#fff",
+                          fontSize: "11px",
+                          fontWeight: 800,
+                          cursor: "pointer",
+                          lineHeight: 1,
+                        }}
+                      >
+                        ×
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       </section>
 

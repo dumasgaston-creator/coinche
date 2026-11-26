@@ -74,6 +74,7 @@ export interface LiveBracketMatchView {
 export type LiveSpecialPopupKind =
   | "announcement"
   | "elimination"
+  | "almost_there"
   | "champion"
   | "first_deal";
 

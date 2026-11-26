@@ -379,5 +379,21 @@ export function buildSimulatedAnnouncementEvents(
     createdAt: nowIso,
   };
 
+  // Un clic sur 2 de simulation montre le pop-up "TU Y ES PRESQUE !" avec photo aleatoire du Dossier Vainqueurs
+  if (safeIndex % 2 === 1) {
+    return {
+      announcedEvent: {
+        ...announcedEvent,
+        queueKey: `${baseId}:almost_there`,
+        specialKind: "almost_there",
+        phase: "passed",
+        customHeadline: "TU Y ES PRESQUE !",
+        customBadge: "HUITIÈME REMPORTÉ · 500 PTS",
+        contractNote: "Qualifiés en Quart · Les derniers vainqueurs vous attendent",
+      },
+      verdictEvent,
+    };
+  }
+
   return { announcedEvent, verdictEvent };
 }

@@ -14,6 +14,10 @@ import {
   type MemeCategory,
 } from "@/lib/memes/meme-bank";
 import {
+  DEFAULT_LATEST_WINNER_PHOTO_URL,
+  pickRandomPreviousWinnerPhoto,
+} from "@/lib/memes/winners-gallery";
+import {
   CheckIcon,
   ClubSuitIcon,
   DiamondSuitIcon,
@@ -88,6 +92,14 @@ function resolvePopupMedia(
       src: "/assets/media/popup-premiere-donne.mp4",
       kind: "video",
       caption: "Coup d'envoi · Première donne",
+    };
+  }
+  if (event.specialKind === "almost_there") {
+    const pickedWinner = pickRandomPreviousWinnerPhoto();
+    return {
+      src: pickedWinner.imageUrl,
+      kind: "image",
+      caption: pickedWinner.caption,
     };
   }
   if (event.specialKind === "champion") {
@@ -173,10 +185,11 @@ export function LivePopupOverlay(props: LivePopupOverlayProps) {
       holdSeconds = null;
     } else if (
       event.specialKind === "elimination" ||
+      event.specialKind === "almost_there" ||
       event.specialKind === "champion" ||
       event.announcementType === "generale"
     ) {
-      holdSeconds = 6.8;
+      holdSeconds = 6.6;
     }
 
     const timeline = playLivePopupTimeline(
@@ -213,7 +226,7 @@ export function LivePopupOverlay(props: LivePopupOverlayProps) {
   }, [event, soundEnabled, isVideoPopup]);
 
   const titleWord = getAnnouncementDisplayTitle(event.announcementType);
-  let resolvedWinnerPhoto = "/assets/media/vainqueur-precedent.jpg";
+  let resolvedWinnerPhoto = DEFAULT_LATEST_WINNER_PHOTO_URL;
   if (
     props.winnerPhotoUrl !== undefined &&
     props.winnerPhotoUrl.trim().length > 0
@@ -247,6 +260,14 @@ export function LivePopupOverlay(props: LivePopupOverlayProps) {
     mainHeadline = event.customHeadline ?? "CAPRI-SEUM !";
     verdictPillText = event.contractNote ?? "FIN DE PARCOURS";
     footerHint = "Capri-Seum · Le bon goût de la défaite";
+  } else if (event.specialKind === "almost_there") {
+    cardVariantClass = "live-popup-card live-popup-passed";
+    statusBadgeIcon = <TrophyIcon size={19} />;
+    topBadgeText =
+      event.customBadge ?? `MANCHE REMPORTÉE · TABLE ${event.tableNumber}`;
+    mainHeadline = event.customHeadline ?? "TU Y ES PRESQUE !";
+    verdictPillText = event.contractNote ?? "DIRECTION LE TOUR SUIVANT";
+    footerHint = `${media.caption} · Les derniers vainqueurs vous attendent`;
   } else if (event.specialKind === "champion") {
     cardVariantClass = "live-popup-card live-popup-passed";
     statusBadgeIcon = <TrophyIcon size={19} />;
@@ -273,6 +294,8 @@ export function LivePopupOverlay(props: LivePopupOverlayProps) {
   let teamLabelText = "Joueurs";
   if (event.specialKind === "elimination") {
     teamLabelText = "Éliminés";
+  } else if (event.specialKind === "almost_there") {
+    teamLabelText = "Vainqueurs de la manche";
   } else if (event.specialKind === "champion") {
     teamLabelText = "Vainqueurs";
   }
