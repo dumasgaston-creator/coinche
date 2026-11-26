@@ -151,25 +151,33 @@ function sortActiveTeamsDeterministically(
   });
 }
 
-/**
- * Genere les poules, repartit les equipes validees au check-in en serpentin deterministe
- * et assigne automatiquement les numeros de tables (rythme libre a partir de 18h30).
- */
-export function generatePoolsAndSchedule(
-  allTeams: TournamentTeamInput[],
+export type PoolDrawMode = "deterministic" | "random" | "seeded_random";
+
+function shuffleArray<T>(
+  items: readonly T[],
+  randomFn: () => number = Math.random,
+): T[] {
+  const copy = [...items];
+  for (let i = copy.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(randomFn() * (i + 1));
+    const tmp = copy[i];
+    const swapVal = copy[j];
+    if (tmp !== undefined && swapVal !== undefined) {
+      copy[i] = swapVal;
+      copy[j] = tmp;
+    }
+  }
+  return copy;
+}
+
+function buildPlanFromBuckets(
+  bucketedTeams: TournamentTeamInput[][],
   options?: {
     dealsPerMatch?: number;
     startsAtTimeLabel?: string;
     startingTableNumber?: number;
   },
 ): PoolGenerationPlan {
-  const activeTeams = allTeams.filter(
-    (team) => team.checkedIn && !team.isForfeit,
-  );
-  const sortedTeams = sortActiveTeamsDeterministically(activeTeams);
-  const poolSizes = computeOptimalPoolSizes(sortedTeams.length);
-  const poolCount = poolSizes.length;
-
   let dealsPerMatch = DEFAULT_DEALS_PER_MATCH;
   if (options?.dealsPerMatch !== undefined) {
     dealsPerMatch = options.dealsPerMatch;
@@ -185,53 +193,16 @@ export function generatePoolsAndSchedule(
     nextTableNumber = options.startingTableNumber;
   }
 
-  const bucketedTeams: TournamentTeamInput[][] = poolSizes.map(() => []);
-
-  // Distribution en serpentin (0..P-1 puis P-1..0) en respectant la capacite exacte de chaque poule
-  let teamIdx = 0;
-  let passNumber = 0;
-
-  while (teamIdx < sortedTeams.length) {
-    const indices: number[] = [];
-    if (passNumber % 2 === 0) {
-      for (let p = 0; p < poolCount; p += 1) {
-        indices.push(p);
-      }
-    } else {
-      for (let p = poolCount - 1; p >= 0; p -= 1) {
-        indices.push(p);
-      }
-    }
-
-    for (const poolIdx of indices) {
-      if (teamIdx >= sortedTeams.length) {
-        break;
-      }
-      const bucket = bucketedTeams[poolIdx];
-      const targetSize = poolSizes[poolIdx];
-      const currentTeam = sortedTeams[teamIdx];
-
-      if (
-        bucket !== undefined &&
-        targetSize !== undefined &&
-        currentTeam !== undefined &&
-        bucket.length < targetSize
-      ) {
-        bucket.push(currentTeam);
-        teamIdx += 1;
-      }
-    }
-
-    passNumber += 1;
-  }
-
+  const nonEmptyBuckets = bucketedTeams.filter((b) => b.length > 0);
   const pools: GeneratedPool[] = [];
   const matches: GeneratedPoolMatch[] = [];
+  let totalActiveTeams = 0;
 
-  for (let p = 0; p < poolCount; p += 1) {
+  for (let p = 0; p < nonEmptyBuckets.length; p += 1) {
     const poolNumber = p + 1;
-    const bucket = bucketedTeams[p] ?? [];
+    const bucket = nonEmptyBuckets[p] ?? [];
     const size = bucket.length;
+    totalActiveTeams += size;
     const simultaneousTables = Math.max(1, Math.floor(size / 2));
     const assignedTableStart = nextTableNumber;
     nextTableNumber += simultaneousTables;
@@ -249,35 +220,208 @@ export function generatePoolsAndSchedule(
       })),
     });
 
-    const roundSchedule = generateRoundRobinPairings(size);
-    for (const round of roundSchedule) {
-      for (let matchOffset = 0; matchOffset < round.matches.length; matchOffset += 1) {
-        const pair = round.matches[matchOffset];
-        if (pair === undefined) {
-          continue;
-        }
-        const teamA = bucket[pair[0]];
-        const teamB = bucket[pair[1]];
-        if (teamA === undefined || teamB === undefined) {
-          continue;
-        }
+    if (size >= 2) {
+      const roundSchedule = generateRoundRobinPairings(size);
+      for (const round of roundSchedule) {
+        for (
+          let matchOffset = 0;
+          matchOffset < round.matches.length;
+          matchOffset += 1
+        ) {
+          const pair = round.matches[matchOffset];
+          if (pair === undefined) {
+            continue;
+          }
+          const teamA = bucket[pair[0]];
+          const teamB = bucket[pair[1]];
+          if (teamA === undefined || teamB === undefined) {
+            continue;
+          }
 
-        matches.push({
-          poolNumber,
-          roundNumber: round.roundNumber,
-          tableNumber: assignedTableStart + matchOffset,
-          teamAId: teamA.id,
-          teamBId: teamB.id,
-          maxDeals: dealsPerMatch,
-        });
+          matches.push({
+            poolNumber,
+            roundNumber: round.roundNumber,
+            tableNumber: assignedTableStart + matchOffset,
+            teamAId: teamA.id,
+            teamBId: teamB.id,
+            maxDeals: dealsPerMatch,
+          });
+        }
       }
     }
   }
 
   return {
     startsAtTimeLabel,
-    totalActiveTeams: sortedTeams.length,
+    totalActiveTeams,
     pools,
     matches,
   };
+}
+
+/**
+ * Genere les poules selon le mode choisi :
+ * - `deterministic` (defaut) : serpentin deterministe par seedOrder
+ * - `random` : tirage 100 % aleatoire (Fisher-Yates)
+ * - `seeded_random` : place chaque Tete de serie (`seededTeamIds`) dans une poule differente
+ *   (position #1 en priorite) et complete aleatoirement avec le reste des equipes.
+ */
+export function generatePoolsAndSchedule(
+  allTeams: TournamentTeamInput[],
+  options?: {
+    dealsPerMatch?: number;
+    startsAtTimeLabel?: string;
+    startingTableNumber?: number;
+    mode?: PoolDrawMode;
+    seededTeamIds?: readonly string[];
+    randomFn?: () => number;
+  },
+): PoolGenerationPlan {
+  const activeTeams = allTeams.filter(
+    (team) => team.checkedIn && !team.isForfeit,
+  );
+  const mode: PoolDrawMode = options?.mode ?? "deterministic";
+  const randomFn = options?.randomFn ?? Math.random;
+
+  let orderedTeams: TournamentTeamInput[] = [];
+  if (mode === "random") {
+    orderedTeams = shuffleArray(activeTeams, randomFn);
+  } else if (mode === "seeded_random") {
+    const seedSet = new Set<string>(options?.seededTeamIds ?? []);
+    const seededTeams: TournamentTeamInput[] = [];
+    const unseededTeams: TournamentTeamInput[] = [];
+    for (const team of activeTeams) {
+      if (seedSet.has(team.id)) {
+        seededTeams.push(team);
+      } else {
+        unseededTeams.push(team);
+      }
+    }
+    orderedTeams = [
+      ...shuffleArray(seededTeams, randomFn),
+      ...shuffleArray(unseededTeams, randomFn),
+    ];
+  } else {
+    orderedTeams = sortActiveTeamsDeterministically(activeTeams);
+  }
+
+  const poolSizes = computeOptimalPoolSizes(orderedTeams.length);
+  const poolCount = poolSizes.length;
+  const bucketedTeams: TournamentTeamInput[][] = poolSizes.map(() => []);
+
+  // Distribution en serpentin (0..P-1 puis P-1..0) :
+  // En mode `seeded_random`, les P premieres Tetes de serie tombent exactement en slot 0 de chaque poule.
+  let teamIdx = 0;
+  let passNumber = 0;
+
+  while (teamIdx < orderedTeams.length) {
+    const indices: number[] = [];
+    if (passNumber % 2 === 0) {
+      for (let p = 0; p < poolCount; p += 1) {
+        indices.push(p);
+      }
+    } else {
+      for (let p = poolCount - 1; p >= 0; p -= 1) {
+        indices.push(p);
+      }
+    }
+
+    for (const poolIdx of indices) {
+      if (teamIdx >= orderedTeams.length) {
+        break;
+      }
+      const bucket = bucketedTeams[poolIdx];
+      const targetSize = poolSizes[poolIdx];
+      const currentTeam = orderedTeams[teamIdx];
+
+      if (
+        bucket !== undefined &&
+        targetSize !== undefined &&
+        currentTeam !== undefined &&
+        bucket.length < targetSize
+      ) {
+        bucket.push(currentTeam);
+        teamIdx += 1;
+      }
+    }
+
+    passNumber += 1;
+  }
+
+  return buildPlanFromBuckets(bucketedTeams, options);
+}
+
+/**
+ * Construit le calendrier complet des matchs et tables a partir de poules
+ * composees ou modifiees manuellement par l'administrateur.
+ */
+export function buildScheduleFromManualPools(
+  allTeams: TournamentTeamInput[],
+  manualPoolTeamIds: ReadonlyArray<readonly string[]>,
+  options?: {
+    dealsPerMatch?: number;
+    startsAtTimeLabel?: string;
+    startingTableNumber?: number;
+  },
+): PoolGenerationPlan {
+  const teamById = new Map<string, TournamentTeamInput>();
+  for (const team of allTeams) {
+    if (team.checkedIn && !team.isForfeit) {
+      teamById.set(team.id, team);
+    }
+  }
+
+  const seenTeamIds = new Set<string>();
+  const bucketedTeams: TournamentTeamInput[][] = [];
+
+  for (const poolIds of manualPoolTeamIds) {
+    const bucket: TournamentTeamInput[] = [];
+    for (const id of poolIds) {
+      if (seenTeamIds.has(id)) {
+        continue;
+      }
+      const found = teamById.get(id);
+      if (found !== undefined) {
+        seenTeamIds.add(id);
+        bucket.push(found);
+      }
+    }
+    if (bucket.length > 0) {
+      bucketedTeams.push(bucket);
+    }
+  }
+
+  // Si des equipes actives n'etaient pas encore assignees, les ajouter dans la poule la moins remplie
+  for (const [id, team] of teamById.entries()) {
+    if (seenTeamIds.has(id)) {
+      continue;
+    }
+    if (bucketedTeams.length === 0) {
+      bucketedTeams.push([team]);
+    } else {
+      let smallestIdx = 0;
+      for (let i = 1; i < bucketedTeams.length; i += 1) {
+        const currentLen = bucketedTeams[i]?.length ?? 999;
+        const smallestLen = bucketedTeams[smallestIdx]?.length ?? 999;
+        if (currentLen < smallestLen) {
+          smallestIdx = i;
+        }
+      }
+      bucketedTeams[smallestIdx]?.push(team);
+    }
+  }
+
+  if (bucketedTeams.length === 0) {
+    throw new Error("Aucune poule valide à générer.");
+  }
+
+  for (const bucket of bucketedTeams) {
+    if (bucket.length < 2) {
+      throw new Error(
+        "Chaque poule doit contenir au moins 2 équipes pour générer les matchs.",
+      );
+    }
+  }
+
+  return buildPlanFromBuckets(bucketedTeams, options);
 }

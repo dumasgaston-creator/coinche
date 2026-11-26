@@ -4,6 +4,7 @@ import { useEffect, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { AdminCheckinImportPanel } from "@/components/admin/AdminCheckinImportPanel";
 import { AdminControlHeader } from "@/components/admin/AdminControlHeader";
+import { AdminPoolBuilderPanel } from "@/components/admin/AdminPoolBuilderPanel";
 import { AdminPosterAndKnockoutPanel } from "@/components/admin/AdminPosterAndKnockoutPanel";
 import { AdminRefereeAlertsPanel } from "@/components/admin/AdminRefereeAlertsPanel";
 import { AdminTablesLiveGrid } from "@/components/admin/AdminTablesLiveGrid";
@@ -14,6 +15,7 @@ import {
 import type { RawImportedTeamRow } from "@/lib/tournament";
 import {
   adminAdvanceToKnockoutInStore,
+  adminApplyManualPoolsInStore,
   adminForceUpdateMatchInStore,
   adminGeneratePoolsInStore,
   adminImportTeamsIntoStore,
@@ -811,6 +813,29 @@ export function AdminDashboardClient(props: AdminDashboardClientProps) {
         </div>
 
         <div className="admin-col">
+          <AdminPoolBuilderPanel
+            teams={state.teams}
+            pools={state.pools}
+            hasScoredPoolMatches={state.matches.some(
+              (m) => m.phase === "pool" && (m.scoreTeamA > 0 || m.scoreTeamB > 0),
+            )}
+            onApplyManualPools={(poolTeamIds, summaryLabel) => {
+              try {
+                const updated = adminApplyManualPoolsInStore(poolTeamIds);
+                setFeedback({
+                  message: `Poules appliquées (${summaryLabel}) · ${updated.matches.length} matchs créés et synchronisés sur /ma-table, /classement et /live !`,
+                  tone: "ok",
+                });
+              } catch (err) {
+                let msg = "Impossible d'appliquer ces poules.";
+                if (err instanceof Error) {
+                  msg = err.message;
+                }
+                setFeedback({ message: msg, tone: "error" });
+              }
+            }}
+          />
+
           <AdminTablesLiveGrid
             matches={state.matches}
             teams={state.teams}

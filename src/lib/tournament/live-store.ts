@@ -25,8 +25,10 @@ import {
   type UnifiedTournamentState,
 } from "@/lib/tournament/live-store-types";
 import {
+  buildScheduleFromManualPools,
   formatPoolLabel,
   generatePoolsAndSchedule,
+  type PoolDrawMode,
 } from "@/lib/tournament/pool-generator";
 import {
   computePoolStandings,
@@ -1507,79 +1509,102 @@ export function adminForceUpdateMatchInStore(params: {
   return after;
 }
 
-export function adminGeneratePoolsInStore(): UnifiedTournamentState {
+function applyPoolPlanToTournamentState(
+  state: UnifiedTournamentState,
+  plan: ReturnType<typeof generatePoolsAndSchedule>,
+): UnifiedTournamentState {
+  const poolCodeMap = new Map<string, string>();
+  for (const pool of plan.pools) {
+    const letter = pool.poolLabel.replace("Poule ", "").trim();
+    for (const member of pool.teams) {
+      poolCodeMap.set(
+        member.teamId,
+        `${letter}${String(member.positionInPool).padStart(2, "0")}`,
+      );
+    }
+  }
+
+  const updatedTeams = state.teams.map((t) => {
+    const assignedCode = poolCodeMap.get(t.id);
+    if (assignedCode !== undefined) {
+      return { ...t, shortCode: assignedCode };
+    }
+    return t;
+  });
+
+  const generatedMatches: UnifiedMatchRecord[] = plan.matches.map((m) => {
+    let initialStatus: MatchStatus = "pending";
+    if (m.roundNumber === 1) {
+      initialStatus = "in_progress";
+    }
+    return {
+      id: `match-pool-${m.poolNumber}-r${m.roundNumber}-t${m.tableNumber}`,
+      phase: "pool",
+      poolNumber: m.poolNumber,
+      poolLabel: formatPoolLabel(m.poolNumber),
+      roundNumber: m.roundNumber,
+      bracketSlot: null,
+      tableNumber: m.tableNumber,
+      teamAId: m.teamAId,
+      teamBId: m.teamBId,
+      seedA: null,
+      seedB: null,
+      scoreTeamA: 0,
+      scoreTeamB: 0,
+      targetScore: null,
+      maxDeals: m.maxDeals,
+      dealsPlayed: 0,
+      deals: [],
+      isDirectFinalScore: false,
+      status: initialStatus,
+      winnerTeamId: null,
+      forfeitTeamId: null,
+      lockedByAdmin: false,
+      nextMatchId: null,
+      nextMatchSlot: null,
+      highlightNote: null,
+      updatedByRole: "admin",
+      updatedAtLabel: formatStoreTimeLabel(),
+    };
+  });
+
+  return {
+    ...state,
+    tournament: {
+      ...state.tournament,
+      status: "pools",
+      registrationsLocked: true,
+    },
+    teams: updatedTeams,
+    pools: plan.pools,
+    matches: generatedMatches,
+  };
+}
+
+export function adminGeneratePoolsInStore(options?: {
+  mode?: PoolDrawMode;
+  seededTeamIds?: readonly string[];
+}): UnifiedTournamentState {
   return updateUnifiedTournamentState((state) => {
     const plan = generatePoolsAndSchedule(state.teams, {
       dealsPerMatch: state.tournament.dealsPerPoolMatch,
       startsAtTimeLabel: state.tournament.startsAtLabel,
+      mode: options?.mode,
+      seededTeamIds: options?.seededTeamIds,
     });
+    return applyPoolPlanToTournamentState(state, plan);
+  });
+}
 
-    const poolCodeMap = new Map<string, string>();
-    for (const pool of plan.pools) {
-      const letter = pool.poolLabel.replace("Poule ", "").trim();
-      for (const member of pool.teams) {
-        poolCodeMap.set(
-          member.teamId,
-          `${letter}${String(member.positionInPool).padStart(2, "0")}`,
-        );
-      }
-    }
-
-    const updatedTeams = state.teams.map((t) => {
-      const assignedCode = poolCodeMap.get(t.id);
-      if (assignedCode !== undefined) {
-        return { ...t, shortCode: assignedCode };
-      }
-      return t;
+export function adminApplyManualPoolsInStore(
+  manualPoolTeamIds: ReadonlyArray<readonly string[]>,
+): UnifiedTournamentState {
+  return updateUnifiedTournamentState((state) => {
+    const plan = buildScheduleFromManualPools(state.teams, manualPoolTeamIds, {
+      dealsPerMatch: state.tournament.dealsPerPoolMatch,
+      startsAtTimeLabel: state.tournament.startsAtLabel,
     });
-
-    const generatedMatches: UnifiedMatchRecord[] = plan.matches.map((m) => {
-      let initialStatus: MatchStatus = "pending";
-      if (m.roundNumber === 1) {
-        initialStatus = "in_progress";
-      }
-      return {
-        id: `match-pool-${m.poolNumber}-r${m.roundNumber}-t${m.tableNumber}`,
-        phase: "pool",
-        poolNumber: m.poolNumber,
-        poolLabel: formatPoolLabel(m.poolNumber),
-        roundNumber: m.roundNumber,
-        bracketSlot: null,
-        tableNumber: m.tableNumber,
-        teamAId: m.teamAId,
-        teamBId: m.teamBId,
-        seedA: null,
-        seedB: null,
-        scoreTeamA: 0,
-        scoreTeamB: 0,
-        targetScore: null,
-        maxDeals: m.maxDeals,
-        dealsPlayed: 0,
-        deals: [],
-        isDirectFinalScore: false,
-        status: initialStatus,
-        winnerTeamId: null,
-        forfeitTeamId: null,
-        lockedByAdmin: false,
-        nextMatchId: null,
-        nextMatchSlot: null,
-        highlightNote: null,
-        updatedByRole: "admin",
-        updatedAtLabel: formatStoreTimeLabel(),
-      };
-    });
-
-    return {
-      ...state,
-      tournament: {
-        ...state.tournament,
-        status: "pools",
-        registrationsLocked: true,
-      },
-      teams: updatedTeams,
-      pools: plan.pools,
-      matches: generatedMatches,
-    };
+    return applyPoolPlanToTournamentState(state, plan);
   });
 }
 

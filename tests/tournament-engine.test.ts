@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  buildScheduleFromManualPools,
   calculateCoincheDealScore,
   computeEffectiveContractThreshold,
   computeOptimalPoolSizes,
@@ -520,5 +521,47 @@ describe("Regles officielles de marque Coinch'Eirb et 6e donne de departage", ()
     expect(r16Matches).toHaveLength(8);
     expect(finalMatches).toHaveLength(1);
     expect(r16Matches.every((m) => m.status === "in_progress")).toBe(true);
+  });
+
+  it("separe les tetes de serie dans des poules differentes en mode aleatoire et reconstruit les matchs apres modification manuelle", () => {
+    const teams20 = buildMockTeams(20);
+    const tdsIds = [
+      teams20[0]!.id,
+      teams20[4]!.id,
+      teams20[9]!.id,
+      teams20[14]!.id,
+      teams20[19]!.id,
+    ];
+
+    const plan = generatePoolsAndSchedule(teams20, {
+      mode: "seeded_random",
+      seededTeamIds: tdsIds,
+    });
+
+    expect(plan.pools).toHaveLength(5);
+    expect(plan.totalActiveTeams).toBe(20);
+
+    // Chaque poule doit contenir exactement 1 tete de serie (zero collision)
+    for (const pool of plan.pools) {
+      const tdsInPool = pool.teams.filter((m) => tdsIds.includes(m.teamId));
+      expect(tdsInPool).toHaveLength(1);
+    }
+
+    // Echange manuel entre Poule A et Poule B puis reconstruction du calendrier
+    const manualPools = plan.pools.map((p) => p.teams.map((m) => m.teamId));
+    const teamFromA = manualPools[0]![1]!;
+    const teamFromB = manualPools[1]![1]!;
+    manualPools[0]![1] = teamFromB;
+    manualPools[1]![1] = teamFromA;
+
+    const customPlan = buildScheduleFromManualPools(teams20, manualPools);
+    expect(customPlan.pools).toHaveLength(5);
+    expect(customPlan.matches).toHaveLength(30);
+    expect(
+      customPlan.pools[0]!.teams.some((m) => m.teamId === teamFromB),
+    ).toBe(true);
+    expect(
+      customPlan.pools[1]!.teams.some((m) => m.teamId === teamFromA),
+    ).toBe(true);
   });
 });
