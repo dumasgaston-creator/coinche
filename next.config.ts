@@ -58,6 +58,18 @@ function buildSecurityHeaders(): Array<{ key: string; value: string }> {
       key: "Permissions-Policy",
       value: "camera=(), microphone=(), geolocation=()",
     },
+    {
+      key: "Cross-Origin-Opener-Policy",
+      value: "same-origin",
+    },
+    {
+      key: "Cross-Origin-Resource-Policy",
+      value: "same-origin",
+    },
+    {
+      key: "X-DNS-Prefetch-Control",
+      value: "off",
+    },
   ];
 
   if (isProd) {

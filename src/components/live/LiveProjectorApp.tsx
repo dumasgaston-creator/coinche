@@ -790,7 +790,6 @@ export function LiveProjectorApp() {
         onToggleFullscreen={handleToggleFullscreen}
         onToggleSound={handleToggleSound}
         onTriggerFirstDealPopup={handleTriggerFirstDealPopup}
-        onSimulateAnnouncement={handleSimulateAnnouncement}
       />
 
       <main className="live-main-stage">

@@ -1,8 +1,16 @@
 "use client";
 
-import { useMemo, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { ClubAccountGateCard } from "@/components/auth/ClubAccountGateCard";
+import { ShareWebsiteBanner } from "@/components/layout/ShareWebsiteBanner";
+import { ClashRoyaleSoundboardBar } from "@/components/live/ClashRoyaleSoundboardBar";
+import {
+  playBuiltinSoundPreset,
+  playMatchOutcomeSound,
+} from "@/components/live/sound-engine";
+import { PartnerDiscoveryAndAddCard } from "@/components/players/PartnerDiscoveryAndAddCard";
+import { useClubAccount } from "@/lib/auth/use-club-account";
 import {
   addDealToCasualGameInStore,
   collectKnownSchoolPlayers,
@@ -34,7 +42,10 @@ const TARGET_OPTIONS: ReadonlyArray<{ label: string; value: number | null }> = [
   { label: "Libre", value: null },
 ];
 
-const SPECIAL_TAGS: ReadonlyArray<{ id: Exclude<CasualSpecialTag, null>; label: string }> = [
+const SPECIAL_TAGS: ReadonlyArray<{
+  id: Exclude<CasualSpecialTag, null>;
+  label: string;
+}> = [
   { id: "capot", label: "Capot" },
   { id: "generale", label: "Générale" },
   { id: "coinche", label: "Coinche" },
@@ -57,7 +68,8 @@ function formatDateShort(iso: string): string {
 
 export function PartieLibreView() {
   const { state: tournamentState } = useTournamentStore();
-  const { games } = useCasualGamesStore();
+  const { games, directory } = useCasualGamesStore();
+  const { account } = useClubAccount();
 
   const [playerA1, setPlayerA1] = useState<string>("");
   const [playerA2, setPlayerA2] = useState<string>("");
@@ -75,9 +87,36 @@ export function PartieLibreView() {
 
   const [historySearch, setHistorySearch] = useState<string>("");
 
+  // Pre-remplit automatiquement Joueur 1 avec le prenom du joueur connecte
+  // et lit les parametres d'invitation (?partenaire=..., ?adv1=..., ?adv2=...)
+  useEffect(() => {
+    if (account !== null && playerA1.trim().length === 0) {
+      setPlayerA1(account.firstName);
+    }
+    if (typeof window !== "undefined") {
+      try {
+        const params = new URLSearchParams(window.location.search);
+        const pInvite = params.get("partenaire");
+        const adv1 = params.get("adv1");
+        const adv2 = params.get("adv2");
+        if (pInvite !== null && pInvite.trim().length > 0 && playerA2 === "") {
+          setPlayerA2(pInvite.trim());
+        }
+        if (adv1 !== null && adv1.trim().length > 0 && playerB1 === "") {
+          setPlayerB1(adv1.trim());
+        }
+        if (adv2 !== null && adv2.trim().length > 0 && playerB2 === "") {
+          setPlayerB2(adv2.trim());
+        }
+      } catch {
+        // Ignore
+      }
+    }
+  }, [account, playerA1, playerA2, playerB1, playerB2]);
+
   const knownPlayers = useMemo(
-    () => collectKnownSchoolPlayers(tournamentState, games),
-    [tournamentState, games],
+    () => collectKnownSchoolPlayers(tournamentState, games, directory),
+    [tournamentState, games, directory],
   );
 
   const inProgressGames = useMemo(
@@ -111,10 +150,10 @@ export function PartieLibreView() {
         locationLabel: "Au BAR",
       });
       setActiveGameId(created.id);
-      setPlayerA1("");
       setPlayerA2("");
       setPlayerB1("");
       setPlayerB2("");
+      playBuiltinSoundPreset("hog_rider");
     } catch (err) {
       let msg = "Vérifiez les 4 noms de joueurs.";
       if (err instanceof Error) {
@@ -147,12 +186,30 @@ export function PartieLibreView() {
       return;
     }
 
-    addDealToCasualGameInStore({
+    const updatedGames = addDealToCasualGameInStore({
       gameId: activeGame.id,
       pointsTeamA: parsedA,
       pointsTeamB: parsedB,
       specialTag,
     });
+
+    const refreshed = updatedGames.find((g) => g.id === activeGame?.id);
+    if (refreshed !== undefined && refreshed.status === "completed") {
+      if (refreshed.winnerSide === "team_a") {
+        playMatchOutcomeSound("win");
+      } else {
+        playMatchOutcomeSound("lose");
+      }
+    } else if (parsedA > parsedB) {
+      if (specialTag === "capot" || specialTag === "generale") {
+        playMatchOutcomeSound("win");
+      }
+    } else if (parsedB > parsedA) {
+      if (parsedA === 0 && parsedB >= 160) {
+        playMatchOutcomeSound("lose");
+      }
+    }
+
     setPtsA("");
     setPtsB("");
     setSpecialTag(null);
@@ -185,11 +242,11 @@ export function PartieLibreView() {
             <SpadeSuitIcon size={12} />
             <span>Toute l&apos;année · Au BAR ENSEIRB</span>
           </span>
-          <h1 className="jouer-title">Partie Libre</h1>
+          <h1 className="jouer-title">Partie Libre &amp; Duos</h1>
         </div>
         <Link href="/classement" className="btn btn-sm btn-primary">
           <TrophyIcon size={15} />
-          <span>Classement +/- Annuel</span>
+          <span>Classements Individuel &amp; Équipe</span>
         </Link>
       </header>
 
@@ -234,12 +291,40 @@ export function PartieLibreView() {
           </div>
 
           {activeGame.status === "completed" && (
-            <div className="banner banner-pass" style={{ marginTop: "10px" }}>
-              <TrophyIcon size={16} />
-              <span>
-                Partie terminée ! Le bilan +/- annuel des 4 joueurs est mis à
-                jour.
-              </span>
+            <div
+              className="banner banner-pass"
+              style={{
+                marginTop: "10px",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                gap: "8px",
+                flexWrap: "wrap",
+              }}
+            >
+              <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                <TrophyIcon size={16} />
+                <span>
+                  Partie terminée ! Les classements Individuel &amp; Équipe
+                  ENSEIRB sont mis à jour.
+                </span>
+              </div>
+              <div style={{ display: "inline-flex", gap: "6px" }}>
+                <button
+                  type="button"
+                  className="btn btn-sm btn-primary"
+                  onClick={() => playMatchOutcomeSound("win")}
+                >
+                  Roi HEHEHEHA !
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-sm btn-secondary"
+                  onClick={() => playMatchOutcomeSound("lose")}
+                >
+                  FAAAAHHH !
+                </button>
+              </div>
             </div>
           )}
 
@@ -355,7 +440,13 @@ export function PartieLibreView() {
                     className="btn btn-pass btn-sm"
                     onClick={() => {
                       if (activeGame !== null) {
+                        const wonA = activeGame.scoreA > activeGame.scoreB;
                         finishCasualGameInStore({ gameId: activeGame.id });
+                        if (wonA) {
+                          playMatchOutcomeSound("win");
+                        } else {
+                          playMatchOutcomeSound("lose");
+                        }
                       }
                     }}
                   >
@@ -415,9 +506,30 @@ export function PartieLibreView() {
       )}
 
       <ClubAccountGateCard
-        title="Connecte ton compte pour certifier tes parties au classement annuel"
+        title="Connecte-toi pour ajouter tes partenaires et certifier tes victoires"
         compact
       />
+
+      {/* MODULE CONNAÎTRE LA PERSONNE AVEC QUI ON JOUE & L'AJOUTER MÊME SI ON N'EST PAS ELLE */}
+      <PartnerDiscoveryAndAddCard
+        tournamentState={tournamentState}
+        casualGames={games}
+        directory={directory}
+        selectedPartnerName={playerA2}
+        myPlayerName={playerA1}
+        onPartnerReady={(info) => {
+          setPlayerA2(info.partnerName);
+          if (info.myName !== null && playerA1.trim().length === 0) {
+            setPlayerA1(info.myName);
+          }
+        }}
+      />
+
+      {/* SOUNDBOARD CLASH ROYALE & FAAAAHHH */}
+      <ClashRoyaleSoundboardBar compact />
+
+      {/* LIEN CLIQUABLE & INVITATION PARTENAIRE */}
+      <ShareWebsiteBanner compact />
 
       {/* NOUVELLE PARTIE AU BAR */}
       <section className="card-ruled" aria-labelledby="new-casual-heading">
@@ -435,7 +547,7 @@ export function PartieLibreView() {
           </h2>
           <span className="badge badge-neutral">
             <UsersIcon size={12} />
-            <span>{knownPlayers.length} joueurs connus</span>
+            <span>{knownPlayers.length} joueur(s) connus</span>
           </span>
         </div>
 
@@ -453,7 +565,7 @@ export function PartieLibreView() {
                 type="text"
                 list="enseirb-players-list"
                 className="field-input"
-                placeholder="Toi (Prénom / Nom)"
+                placeholder="Toi (Prénom / Pseudo)"
                 value={playerA1}
                 onChange={(e) => setPlayerA1(e.target.value)}
               />
@@ -461,7 +573,7 @@ export function PartieLibreView() {
                 type="text"
                 list="enseirb-players-list"
                 className="field-input"
-                placeholder="Ton partenaire"
+                placeholder="Ton partenaire (tape ou ajoute ci-dessus)"
                 value={playerA2}
                 onChange={(e) => setPlayerA2(e.target.value)}
               />
@@ -542,6 +654,19 @@ export function PartieLibreView() {
             onChange={(e) => setHistorySearch(e.target.value)}
           />
         </div>
+
+        {filteredHistory.length === 0 && (
+          <p
+            style={{
+              margin: 0,
+              fontSize: "13px",
+              color: "var(--ink-secondary)",
+            }}
+          >
+            Aucune partie enregistrée pour le moment. L&apos;application démarre
+            à zéro et se construit petit à petit avec vos vrais noms !
+          </p>
+        )}
 
         <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
           {filteredHistory.map((g) => {

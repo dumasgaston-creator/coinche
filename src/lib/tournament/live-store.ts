@@ -188,13 +188,42 @@ function isValidStoredState(raw: unknown): raw is UnifiedTournamentState {
   );
 }
 
+const LEGACY_TOURNAMENT_STORAGE_KEYS: readonly string[] = [
+  "coincheirb-unified-tournament-v1",
+  "coincheirb-unified-tournament-v2",
+];
+const CLEAN_RESET_FLAG_KEY = "coincheirb-zero-reset-v3-done";
+
+function purgeLegacyFictionalStorageOnce(): void {
+  if (typeof window === "undefined") {
+    return;
+  }
+  try {
+    if (window.localStorage.getItem(CLEAN_RESET_FLAG_KEY) === "true") {
+      return;
+    }
+    for (const oldKey of LEGACY_TOURNAMENT_STORAGE_KEYS) {
+      window.localStorage.removeItem(oldKey);
+    }
+    window.localStorage.removeItem("coincheirb-casual-games-v1");
+    window.localStorage.removeItem("coincheirb-my-team-id");
+    window.localStorage.removeItem("coincheirb-active-match-id");
+    window.localStorage.removeItem("coincheirb-preview-team");
+    window.localStorage.setItem(CLEAN_RESET_FLAG_KEY, "true");
+  } catch {
+    // Ignore si localStorage indisponible
+  }
+}
+
 /**
- * Lit l'etat courant du tournoi depuis la memoire ou `localStorage` (avec repli deterministe).
+ * Lit l'etat courant du tournoi depuis la memoire ou `localStorage` (avec repli deterministe vierge).
  */
 export function readUnifiedTournamentState(): UnifiedTournamentState {
   if (typeof window === "undefined") {
     return createDefaultUnifiedTournamentState();
   }
+
+  purgeLegacyFictionalStorageOnce();
 
   try {
     const raw = window.localStorage.getItem(UNIFIED_STORE_STORAGE_KEY);
@@ -1826,16 +1855,8 @@ export function adminImportTeamsIntoStore(
   });
 }
 
-export function adminResetTournamentInStore(
-  mode: "demo" | "clean_checkin",
-  demoTeamCount: number = 20,
-): UnifiedTournamentState {
-  if (mode === "clean_checkin") {
-    return writeUnifiedTournamentState(createCleanCheckinTournamentState());
-  }
-  return writeUnifiedTournamentState(
-    createDefaultUnifiedTournamentState(demoTeamCount),
-  );
+export function adminResetTournamentInStore(): UnifiedTournamentState {
+  return writeUnifiedTournamentState(createCleanCheckinTournamentState());
 }
 
 export {

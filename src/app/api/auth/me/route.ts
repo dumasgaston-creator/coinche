@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { getOptionalAuthenticatedProfile } from "@/lib/auth/guards";
 import { getTeamSessionFromCookie } from "@/lib/auth/session";
-import { isProductionEnvironment } from "@/lib/env/server";
 import {
   buildSafeErrorResponse,
   toPublicProfileDto,
@@ -9,7 +8,7 @@ import {
 
 /**
  * Retourne l'etat de session verifie cote serveur (Admin, Joueur ou Equipe)
- * en limitant strictement les champs exposes.
+ * en limitant strictement les champs exposes (aucun indice de mot de passe n'est jamais renvoye).
  */
 export async function GET(): Promise<NextResponse> {
   try {
@@ -30,19 +29,12 @@ export async function GET(): Promise<NextResponse> {
       };
     }
 
-    const customHashConfigured =
-      (process.env.ADMIN_BOOTSTRAP_PASSWORD_HASH?.trim() ?? "").startsWith(
-        "scrypt$",
-      );
-
     return NextResponse.json(
       {
         profile: publicProfile,
         teamSession: publicTeamSession,
-        devBootstrapHintAvailable:
-          !isProductionEnvironment() && !customHashConfigured,
       },
-      { status: 200 },
+      { status: 200, headers: { "Cache-Control": "no-store" } },
     );
   } catch (error) {
     return buildSafeErrorResponse(error);

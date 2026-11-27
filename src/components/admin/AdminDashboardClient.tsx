@@ -26,7 +26,6 @@ import {
   formatPlayersPrimaryName,
   formatStoreTimeLabel,
   propagateKnockoutWinners,
-  submitTableAlertToStore,
   updateUnifiedTournamentState,
 } from "@/lib/tournament/live-store";
 import { useTournamentStore } from "@/lib/tournament/use-tournament-store";
@@ -39,7 +38,6 @@ import type {
 } from "@/types/database";
 import {
   AlertTriangleIcon,
-  CheckIcon,
   LockIcon,
 } from "@/components/icons/Icons";
 
@@ -50,20 +48,18 @@ interface MeAuthPayload {
     role: "player" | "admin";
     schoolYear: string;
   } | null;
-  devBootstrapHintAvailable?: boolean;
 }
 
 interface AdminDashboardClientProps {
   initialIsAdmin?: boolean;
   initialAdminName?: string;
-  initialDevHintAvailable?: boolean;
 }
 
 /**
  * Poste de pilotage Administrateur (`/admin`) :
- * - Protege par mot de passe verifie cote serveur (`/api/auth/admin/login`, scrypt + cookie `httpOnly` signe)
- * - Etat de session pre-verifie en SSR pour zero ecran de blocage au chargement
- * - Relie au store temps reel partage avec `/ma-table`, `/classement`, `/equipe` et `/live`.
+ * - Protege par triple verification cote serveur (`/api/auth/admin/login` : Identifiant Bureau + Mot de passe scrypt + Code PIN + cookie `httpOnly` signe)
+ * - Protection anti-bruteforce (4 essais max / blocage 30 min) et piege Honeypot anti-bot
+ * - Zero indice de mot de passe expose, zero bouton de test ou de simulation.
  */
 export function AdminDashboardClient(props: AdminDashboardClientProps) {
   const { state, summary, syncMode, syncRevision } = useTournamentStore();
@@ -74,12 +70,11 @@ export function AdminDashboardClient(props: AdminDashboardClientProps) {
   const [adminDisplayName, setAdminDisplayName] = useState<string>(
     props.initialAdminName ?? "Bureau Coinch'Eirb",
   );
-  const [devHintAvailable, setDevHintAvailable] = useState<boolean>(
-    props.initialDevHintAvailable === true,
-  );
 
-  const [loginEmail, setLoginEmail] = useState<string>("");
+  const [loginIdentifier, setLoginIdentifier] = useState<string>("");
   const [loginPassword, setLoginPassword] = useState<string>("");
+  const [loginPinCode, setLoginPinCode] = useState<string>("");
+  const [loginHoneypot, setLoginHoneypot] = useState<string>("");
   const [loginLoading, setLoginLoading] = useState<boolean>(false);
   const [loginError, setLoginError] = useState<string | null>(null);
 
@@ -101,9 +96,6 @@ export function AdminDashboardClient(props: AdminDashboardClientProps) {
             if (data.profile !== null && data.profile.role === "admin") {
               setIsServerAuthenticated(true);
               setAdminDisplayName(data.profile.displayName);
-            }
-            if (data.devBootstrapHintAvailable === true) {
-              setDevHintAvailable(true);
             }
           }
         }
@@ -128,8 +120,10 @@ export function AdminDashboardClient(props: AdminDashboardClientProps) {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          email: loginEmail.trim(),
+          identifier: loginIdentifier.trim(),
           password: loginPassword,
+          pinCode: loginPinCode.trim(),
+          honeypot: loginHoneypot,
         }),
       });
 
@@ -140,7 +134,7 @@ export function AdminDashboardClient(props: AdminDashboardClientProps) {
       } | null;
 
       if (!res.ok) {
-        let msg = "Mot de passe administrateur refusé.";
+        let msg = "Accès administrateur refusé.";
         if (body !== null && typeof body.error === "string") {
           msg = body.error;
         }
@@ -161,6 +155,7 @@ export function AdminDashboardClient(props: AdminDashboardClientProps) {
       setIsServerAuthenticated(true);
       setAdminDisplayName(name);
       setLoginPassword("");
+      setLoginPinCode("");
     } catch {
       setLoginError(
         "Impossible de joindre le serveur d'authentification. Réessayez.",
@@ -404,31 +399,6 @@ export function AdminDashboardClient(props: AdminDashboardClientProps) {
     });
   }
 
-  function handleSimulateIncomingAlert(
-    alertType: "referee_call" | "abandon_request",
-  ) {
-    const sampleTeam = state.teams[3] ?? {
-      id: "team-04",
-      teamName: "Capot Royal",
-    };
-    let msg =
-      "Appel arbitre : question sur une parlante signalée à la Table 2 (160 pts).";
-    if (alertType === "abandon_request") {
-      msg =
-        "Abandon double-confirmé par l'équipe depuis le téléphone de la table.";
-    }
-
-    submitTableAlertToStore({
-      matchId: state.matches[1]?.id ?? "match-pool-1-r1-t2",
-      tableNumber: state.matches[1]?.tableNumber ?? 2,
-      teamId: sampleTeam.id,
-      teamName: sampleTeam.teamName,
-      alertType,
-      message: msg,
-      applyImmediateForfeit: false,
-    });
-  }
-
   async function handlePushLiveAnnouncement(params: {
     matchId: string;
     tableNumber: number;
@@ -562,29 +532,19 @@ export function AdminDashboardClient(props: AdminDashboardClientProps) {
     }));
   }
 
-  function handleResetTournament(
-    mode: "demo" | "clean_checkin",
-    demoTeamCount: number = 20,
-  ) {
-    const next = adminResetTournamentInStore(mode, demoTeamCount);
-    if (mode === "clean_checkin") {
-      setFeedback({
-        message:
-          "Tournoi remis à zéro (phase Check-in avant 18h30, 0 point). Importez autant d'équipes que vous voulez !",
-        tone: "ok",
-      });
-    } else {
-      setFeedback({
-        message: `Tournoi test généré avec ${next.teams.length} équipes réparties en ${next.pools.length} poules.`,
-        tone: "ok",
-      });
-    }
+  function handleResetTournament() {
+    adminResetTournamentInStore();
+    setFeedback({
+      message:
+        "Tournoi remis à zéro (0 équipe, 0 match, phase Check-in avant 18h30). Ajoutez vos joueurs ou importez votre feuille Google Sheets !",
+      tone: "ok",
+    });
   }
 
   if (!isServerAuthenticated) {
-    let submitBtnLabel = "Déverrouiller le Poste Admin";
+    let submitBtnLabel = "Déverrouiller le Poste Administrateur";
     if (loginLoading) {
-      submitBtnLabel = "Vérification scrypt côté serveur...";
+      submitBtnLabel = "Vérification cryptographique scrypt en cours...";
     }
 
     return (
@@ -592,11 +552,11 @@ export function AdminDashboardClient(props: AdminDashboardClientProps) {
         <section className="card-ruled">
           <span className="eyebrow">
             <LockIcon size={13} />
-            <span>Accès protégé · Vérification serveur obligatoire</span>
+            <span>Accès restreint Bureau · Protection multi-facteurs</span>
           </span>
 
           <h1 className="section-title" style={{ marginTop: "6px" }}>
-            Déverrouillage Poste Administrateur
+            Authentification Administrateur Coinch&apos;Eirb
           </h1>
 
           <p
@@ -606,51 +566,64 @@ export function AdminDashboardClient(props: AdminDashboardClientProps) {
               color: "var(--ink-secondary)",
             }}
           >
-            Entrez le mot de passe administrateur Coinch&apos;Eirb pour accéder
-            à l&apos;édition forcée des scores, à la gestion des équipes, au
-            tirage des poules et au passage aux Huitièmes de finale.
+            Cette zone est réservée au Bureau Coinch&apos;Eirb. Saisissez
+            l&apos;identifiant Bureau, le mot de passe maître et le code PIN de
+            sécurité pour déverrouiller le poste de pilotage. Après 4 échecs,
+            l&apos;adresse IP est bloquée pendant 30 minutes.
           </p>
-
-          {devHintAvailable && (
-            <div
-              className="banner banner-info"
-              style={{ marginBottom: "14px", flexDirection: "column", gap: "6px" }}
-            >
-              <div>
-                <strong>Mode développement local détecté :</strong> aucun hash{" "}
-                <code>ADMIN_BOOTSTRAP_PASSWORD_HASH</code> personnalisé
-                n&apos;est encore défini dans <code>.env.local</code>.
-              </div>
-              <div style={{ fontSize: "12.5px" }}>
-                Mot de passe local actif :{" "}
-                <code>CoincheEirb2026!</code>
-              </div>
-              <button
-                type="button"
-                className="btn btn-sm btn-secondary"
-                style={{ alignSelf: "flex-start" }}
-                onClick={() => setLoginPassword("CoincheEirb2026!")}
-              >
-                <CheckIcon size={14} />
-                <span>Pré-remplir le mot de passe de test local</span>
-              </button>
-            </div>
-          )}
 
           <form
             onSubmit={handleUnlockAdminSubmit}
             style={{ display: "flex", flexDirection: "column", gap: "12px" }}
             noValidate
           >
+            {/* Champ Honeypot invisible contre les robots et scanners */}
+            <div
+              aria-hidden="true"
+              style={{
+                position: "absolute",
+                left: "-9999px",
+                width: "1px",
+                height: "1px",
+                overflow: "hidden",
+              }}
+            >
+              <label htmlFor="admin-website-hp">Ne pas remplir</label>
+              <input
+                id="admin-website-hp"
+                type="text"
+                tabIndex={-1}
+                autoComplete="off"
+                value={loginHoneypot}
+                onChange={(e) => setLoginHoneypot(e.target.value)}
+              />
+            </div>
+
+            <div>
+              <label htmlFor="admin-unlock-identifier" className="field-label">
+                1. Identifiant Bureau (ou Email Admin)
+              </label>
+              <input
+                id="admin-unlock-identifier"
+                type="text"
+                className="field-input"
+                placeholder="Identifiant Bureau Coinch'Eirb"
+                value={loginIdentifier}
+                onChange={(e) => setLoginIdentifier(e.target.value)}
+                autoComplete="username"
+                required
+              />
+            </div>
+
             <div>
               <label htmlFor="admin-unlock-password" className="field-label">
-                Mot de passe administrateur
+                2. Mot de passe maître Administrateur
               </label>
               <input
                 id="admin-unlock-password"
                 type="password"
                 className="field-input"
-                placeholder="Mot de passe maître Coinch'Eirb"
+                placeholder="Mot de passe maître (vérifié par scrypt)"
                 value={loginPassword}
                 onChange={(e) => setLoginPassword(e.target.value)}
                 autoComplete="current-password"
@@ -659,17 +632,20 @@ export function AdminDashboardClient(props: AdminDashboardClientProps) {
             </div>
 
             <div>
-              <label htmlFor="admin-unlock-email" className="field-label">
-                Email admin Supabase (optionnel si mot de passe maître utilisé)
+              <label htmlFor="admin-unlock-pin" className="field-label">
+                3. Code PIN de sécurité Bureau (6 chiffres)
               </label>
               <input
-                id="admin-unlock-email"
-                type="email"
+                id="admin-unlock-pin"
+                type="password"
+                inputMode="numeric"
                 className="field-input"
-                placeholder="bureau@coincheirb.fr (facultatif)"
-                value={loginEmail}
-                onChange={(e) => setLoginEmail(e.target.value)}
-                autoComplete="email"
+                placeholder="Code PIN Bureau à 6 chiffres"
+                maxLength={16}
+                value={loginPinCode}
+                onChange={(e) => setLoginPinCode(e.target.value)}
+                autoComplete="one-time-code"
+                required
               />
             </div>
 
@@ -692,8 +668,8 @@ export function AdminDashboardClient(props: AdminDashboardClientProps) {
               <span>{submitBtnLabel}</span>
             </button>
 
-            <Link href="/ma-table" className="btn btn-secondary btn-full">
-              <span>Retourner aux tables joueurs</span>
+            <Link href="/" className="btn btn-secondary btn-full">
+              <span>Retourner à l&apos;accueil public</span>
             </Link>
           </form>
         </section>
@@ -776,7 +752,6 @@ export function AdminDashboardClient(props: AdminDashboardClientProps) {
           <AdminRefereeAlertsPanel
             alerts={state.alerts}
             onHandleAlert={handleRefereeAlert}
-            onSimulateIncomingAlert={handleSimulateIncomingAlert}
           />
 
           <AdminPosterAndKnockoutPanel

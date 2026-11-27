@@ -14,6 +14,7 @@ import {
   MegaphoneIcon,
   ProjectorScreenIcon,
 } from "@/components/icons/Icons";
+import { ClashRoyaleSoundboardBar } from "@/components/live/ClashRoyaleSoundboardBar";
 
 function compressMemeImage(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -163,20 +164,17 @@ export function MemeBoxView() {
             <MegaphoneIcon size={13} />
             <span>Rotation aléatoire anti-répétition · /live</span>
           </span>
-          <h1 className="memes-title">Boîte à Memes &amp; Photos</h1>
+          <h1 className="memes-title">Boîte à Memes &amp; Sons</h1>
         </div>
         <div style={{ display: "inline-flex", gap: "8px", flexWrap: "wrap" }}>
           <Link href="/live" className="btn btn-sm btn-primary">
             <ProjectorScreenIcon size={15} />
             <span>Voir sur /live</span>
           </Link>
-          {pendingCount > 0 && (
-            <Link href="/admin" className="btn btn-sm btn-secondary">
-              <span>{pendingCount} à valider (/admin)</span>
-            </Link>
-          )}
         </div>
       </header>
+
+      <ClashRoyaleSoundboardBar />
 
       <section className="card-ruled" aria-labelledby="upload-meme-heading">
         <div

@@ -17,6 +17,30 @@ export async function middleware(request: NextRequest): Promise<NextResponse> {
     return NextResponse.redirect(httpsUrl, 308);
   }
 
+  // Garde Edge supplementaire : bloque immediatement tout appel a `/api/admin/*`
+  // si aucun cookie de session administrateur n'est present sur la requete.
+  if (request.nextUrl.pathname.startsWith("/api/admin/")) {
+    const adminCookie = request.cookies.get("coincheirb_admin_session");
+    const sbAccess = request.cookies
+      .getAll()
+      .some((c) => c.name.includes("-auth-token"));
+    if (
+      (adminCookie === undefined || adminCookie.value.trim().length < 20) &&
+      !sbAccess
+    ) {
+      return NextResponse.json(
+        {
+          error:
+            "Accès refusé par le pare-feu Edge : authentification administrateur requise.",
+        },
+        {
+          status: 401,
+          headers: { "Cache-Control": "no-store" },
+        },
+      );
+    }
+  }
+
   const response = NextResponse.next({
     request: {
       headers: request.headers,

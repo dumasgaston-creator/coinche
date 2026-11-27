@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
+import crypto from "node:crypto";
 import { z } from "zod";
 import { verifySecret } from "@/lib/auth/password";
 import { setAdminSessionCookie } from "@/lib/auth/session";
@@ -14,15 +15,25 @@ import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import type { ProfileRow } from "@/types/database";
 
-// Empreinte scrypt (N=16384, r=8, p=1) utilisee uniquement en developpement local
-// lorsque `ADMIN_BOOTSTRAP_PASSWORD_HASH` n'est pas encore defini dans `.env.local`.
-const DEV_ONLY_ADMIN_PASSWORD_SCRYPT_HASH =
+// Empreinte scrypt (N=16384, r=8, p=1) du mot de passe maitre par defaut si ADMIN_BOOTSTRAP_PASSWORD_HASH n'est pas defini
+const DEFAULT_ADMIN_PASSWORD_SCRYPT_HASH =
   "scrypt$a1b2c3d4e5f60718293a4b5c6d7e8f90$2ad158bf26d9c6d53d22e9f5ebe1e70e2400a4746aa9803fdb0cd11ab8759cdbde7f9fb2d019e2bc333803f3c959282aebf6b7ea0176e24aaa1333580ba747fe";
 
+const DEFAULT_ADMIN_IDENTIFIER = "bureau-coincheirb";
+const DEFAULT_ADMIN_PIN = "331830";
+
 const adminLoginPayloadSchema = z.object({
-  email: z.string().trim().email().max(160).optional().or(z.literal("")),
+  identifier: z.string().trim().min(3).max(160),
   password: z.string().min(8).max(128),
+  pinCode: z.string().trim().min(4).max(16),
+  honeypot: z.string().max(120).optional(),
 });
+
+function timingSafeStringMatch(candidate: string, expected: string): boolean {
+  const hashA = crypto.createHash("sha256").update(candidate).digest();
+  const hashB = crypto.createHash("sha256").update(expected).digest();
+  return crypto.timingSafeEqual(hashA, hashB);
+}
 
 function isSupabaseConfigured(): boolean {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -43,32 +54,31 @@ function isSupabaseConfigured(): boolean {
 }
 
 /**
- * Authentification Administrateur verifiee cote serveur :
+ * Authentification Administrateur multi-facteurs verifiee cote serveur :
  * 1. Verification anti-CSRF de l'en-tete `Origin`
- * 2. Limitation stricte anti-bruteforce (5 essais / 5 min, blocage 15 min)
- * 3. Validation Zod des entrees
- * 4. Verification cryptographique `scrypt` en temps constant du mot de passe Admin maitre
- *    (`ADMIN_BOOTSTRAP_PASSWORD_HASH`) + emission d'un cookie `httpOnly`, `secure`, `sameSite=strict`
- *    signe par HMAC-SHA256 cote serveur
- * 5. Support additionnel de Supabase Auth (`profiles.role === "admin"`) si un email est fourni.
+ * 2. Piege Honeypot anti-bot (`honeypot` doit etre vide)
+ * 3. Limitation stricte anti-bruteforce (4 essais / 10 min, blocage 30 min)
+ * 4. Validation Zod des 3 facteurs : Identifiant Bureau + Mot de passe scrypt + Code PIN de securite
+ * 5. Verification en temps constant (`crypto.scrypt` + `timingSafeEqual`)
+ * 6. Emission d'un cookie `httpOnly`, `secure`, `sameSite=strict` signe par HMAC-SHA256.
  */
 export async function POST(request: NextRequest): Promise<NextResponse> {
   try {
     assertTrustedMutationOrigin(request);
 
-    const bucketKey = getHashedRequestClientKey(request, "admin-login");
+    const bucketKey = getHashedRequestClientKey(request, "admin-login-v2");
     const rateDecision = await checkServerRateLimit({
       bucketKey,
-      maxAttempts: 5,
-      windowSeconds: 300,
-      blockSeconds: 900,
+      maxAttempts: 4,
+      windowSeconds: 600,
+      blockSeconds: 1800,
     });
 
     if (!rateDecision.allowed) {
       return NextResponse.json(
         {
           error:
-            "Trop de tentatives de connexion administrateur. Réessayez dans quelques minutes.",
+            "Accès temporairement verrouillé suite à plusieurs tentatives échouées (protection anti-bruteforce 30 min).",
         },
         {
           status: 429,
@@ -83,54 +93,88 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     const parsed = adminLoginPayloadSchema.safeParse(body);
     if (!parsed.success) {
       return NextResponse.json(
-        { error: "Saisissez un mot de passe d'au moins 8 caractères." },
+        {
+          error:
+            "Renseignez l'identifiant Bureau, le mot de passe maître (8+ car.) et le code PIN de sécurité.",
+        },
         { status: 400 },
       );
     }
 
+    // Piege anti-bot / scanner automatique
+    if (
+      parsed.data.honeypot !== undefined &&
+      parsed.data.honeypot.trim().length > 0
+    ) {
+      return NextResponse.json(
+        { error: "Requête rejetée par le pare-feu de sécurité." },
+        { status: 403 },
+      );
+    }
+
+    const candidateIdentifier = parsed.data.identifier.trim().toLowerCase();
     const candidatePassword = parsed.data.password;
-    const rawEmail = parsed.data.email ?? "";
+    const candidatePin = parsed.data.pinCode.trim();
 
-    // 1. Verification par mot de passe maitre hache (`ADMIN_BOOTSTRAP_PASSWORD_HASH`)
+    let expectedIdentifier = (
+      process.env.ADMIN_IDENTIFIER?.trim() ?? ""
+    ).toLowerCase();
+    if (expectedIdentifier.length === 0) {
+      expectedIdentifier = DEFAULT_ADMIN_IDENTIFIER;
+    }
+
+    let expectedPin = process.env.ADMIN_SECURITY_PIN?.trim() ?? "";
+    if (expectedPin.length === 0) {
+      expectedPin = DEFAULT_ADMIN_PIN;
+    }
+
     let targetHash = process.env.ADMIN_BOOTSTRAP_PASSWORD_HASH?.trim() ?? "";
-    if (targetHash === "" && !isProductionEnvironment()) {
-      targetHash = DEV_ONLY_ADMIN_PASSWORD_SCRYPT_HASH;
+    if (targetHash === "") {
+      targetHash = DEFAULT_ADMIN_PASSWORD_SCRYPT_HASH;
     }
 
+    const identifierMatches = timingSafeStringMatch(
+      candidateIdentifier,
+      expectedIdentifier,
+    );
+    const pinMatches = timingSafeStringMatch(candidatePin, expectedPin);
+
+    let passwordMatches = false;
     if (targetHash.startsWith("scrypt$")) {
-      const passwordMatches = await verifySecret(candidatePassword, targetHash);
-      if (passwordMatches) {
-        let displayName = "Bureau Coinch'Eirb (Admin)";
-        if (rawEmail.length > 0) {
-          displayName = rawEmail;
-        }
-
-        await setAdminSessionCookie({
-          adminId: "admin-master-coincheirb",
-          displayName,
-        });
-
-        return NextResponse.json(
-          {
-            authenticated: true,
-            profile: {
-              id: "admin-master-coincheirb",
-              displayName,
-              role: "admin",
-              schoolYear: "2026-2027",
-            },
-          },
-          { status: 200 },
-        );
-      }
+      passwordMatches = await verifySecret(candidatePassword, targetHash);
     }
 
-    // 2. Fallback Supabase Auth si un email est renseigne et Supabase est connecte
-    if (rawEmail.length > 0 && isSupabaseConfigured()) {
+    if (identifierMatches && pinMatches && passwordMatches) {
+      const displayName = "Bureau Coinch'Eirb";
+      await setAdminSessionCookie({
+        adminId: "admin-master-coincheirb",
+        displayName,
+      });
+
+      return NextResponse.json(
+        {
+          authenticated: true,
+          profile: {
+            id: "admin-master-coincheirb",
+            displayName,
+            role: "admin",
+            schoolYear: "2026-2027",
+          },
+        },
+        { status: 200 },
+      );
+    }
+
+    // 2. Fallback Supabase Auth si un email est renseigne + PIN valide + Supabase connecte
+    if (
+      pinMatches &&
+      candidateIdentifier.includes("@") &&
+      isSupabaseConfigured()
+    ) {
       const supabase = await createSupabaseServerClient();
       const { data: authData, error: authError } =
         await supabase.auth.signInWithPassword({
-          email: rawEmail,
+          email: candidateIdentifier,
           password: candidatePassword,
         });
 
@@ -147,7 +191,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         if (profileError !== null || profileData === null) {
           await supabase.auth.signOut();
           return NextResponse.json(
-            { error: "Profil introuvable." },
+            { error: "Identifiants administrateur refusés." },
             { status: 403 },
           );
         }
@@ -179,18 +223,25 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       }
     }
 
-    if (isProductionEnvironment() && targetHash === "" && !isSupabaseConfigured()) {
+    if (
+      isProductionEnvironment() &&
+      !targetHash.startsWith("scrypt$") &&
+      !isSupabaseConfigured()
+    ) {
       return NextResponse.json(
         {
           error:
-            "Configuration serveur incomplète : définissez ADMIN_BOOTSTRAP_PASSWORD_HASH dans vos variables d'environnement.",
+            "Configuration serveur incomplète : définissez ADMIN_BOOTSTRAP_PASSWORD_HASH dans Vercel.",
         },
         { status: 503 },
       );
     }
 
     return NextResponse.json(
-      { error: "Mot de passe administrateur incorrect." },
+      {
+        error:
+          "Identifiant Bureau, mot de passe maître ou code PIN incorrect.",
+      },
       { status: 401 },
     );
   } catch (error) {

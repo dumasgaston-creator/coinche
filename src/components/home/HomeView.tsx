@@ -21,12 +21,12 @@ import {
   ClubSuitIcon,
   DiamondSuitIcon,
   HeartSuitIcon,
-  LockIcon,
   ProjectorScreenIcon,
   SpadeSuitIcon,
   TableCardsIcon,
   TrophyIcon,
 } from "@/components/icons/Icons";
+import { ShareWebsiteBanner } from "@/components/layout/ShareWebsiteBanner";
 
 interface HomeViewProps {
   posterUrl: string;
@@ -345,10 +345,6 @@ export function HomeView(props: HomeViewProps) {
                 <ProjectorScreenIcon size={15} />
                 <span>Projecteur /live</span>
               </Link>
-              <Link href="/admin" className="home-nav-ghost">
-                <LockIcon size={14} />
-                <span>Admin</span>
-              </Link>
             </nav>
           </div>
 
@@ -364,6 +360,11 @@ export function HomeView(props: HomeViewProps) {
           </figure>
         </div>
       </section>
+
+      {/* LIEN CLIQUABLE & QR CODE POUR REJOINDRE LE SITE */}
+      <div style={{ marginTop: "14px", marginBottom: "14px" }}>
+        <ShareWebsiteBanner />
+      </div>
 
       {/* PLANCHE-CONTACT PHOTOS RÉELLES & VAINQUEURS (100 % NON ROGNÉES) */}
       <div className="home-contact-header">

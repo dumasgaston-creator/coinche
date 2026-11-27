@@ -35,7 +35,6 @@ interface LiveTopBarProps {
   onToggleFullscreen: () => void;
   onToggleSound: () => void;
   onTriggerFirstDealPopup: () => void;
-  onSimulateAnnouncement: () => void;
 }
 
 function formatClock(date: Date): string {
@@ -191,15 +190,6 @@ export function LiveTopBar(props: LiveTopBarProps) {
             title="Lancer la vidéo Première Donne sur le projecteur"
           >
             <span>1re Donne</span>
-          </button>
-
-          <button
-            type="button"
-            className="live-sim-btn"
-            onClick={props.onSimulateAnnouncement}
-          >
-            <MegaphoneIcon size={15} />
-            <span>Pop-up</span>
             {totalPendingInQueue > 0 && (
               <span className="live-queue-badge tabular-nums">
                 +{totalPendingInQueue}

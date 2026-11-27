@@ -1,7 +1,3 @@
-import {
-  normalizeComparisonKey,
-  sanitizePlainName,
-} from "@/lib/security/sanitize";
 import type {
   GeneratedBracketNode,
   GeneratedPool,
@@ -98,82 +94,21 @@ export interface AdminCockpitSnapshot {
   bracketNodes: GeneratedBracketNode[];
 }
 
-export const INITIAL_DEMO_CSV_SAMPLE = [
-  "Joueur 1 / Joueur 2\tSURNOM",
-  "Angèle / Kamila\tTeam bouder",
-  "Gaston / Jules\t",
-  "Arthur / Mathis\tShowshow lapin",
-  "Gabriel / Clovis\tGabouzz et Cloporte",
-  "Titou / Joé\tTeam Joé",
-  "Chahe / Antonin\t",
-  "Puff / Baptiste\t",
-  "Martin / Ulysse\tPère et fils",
-  "Marie / Kiki\tLes maîtres",
-  "Maxence / Thomas\t",
-  "Anya / Pierre\t",
-  "Elie / Naël\t",
-  "Nolan / Remi\t",
-  "Kitchi / Tom\t",
-  "Rodri / Neto\t",
-  "Marion / Lilian\t",
-  "Nico / br7\t",
-  "Lenny / Dona\tPlus besoin de les présenter",
-  "Philo / Maxime\t",
-  "Bely / Thib\t",
-].join("\n");
-
-const INITIAL_TEAM_SEED: Array<{
-  teamName: string;
-  player1Name: string;
-  player2Name: string;
-}> = [
-  { teamName: "Les Valets d'Or", player1Name: "Camille Roux", player2Name: "Lucas Girard" },
-  { teamName: "Atout Pique 33", player1Name: "Maxime Lefèvre", player2Name: "Sarah Benali" },
-  { teamName: "Dix de Der", player1Name: "Antoine Mercier", player2Name: "Chloé Faure" },
-  { teamName: "Capot Royal", player1Name: "Hugo Blanc", player2Name: "Léa Chevalier" },
-  { teamName: "Sans Atout Matmeca", player1Name: "Thomas Garnier", player2Name: "Inès Morel" },
-  { teamName: "Générale 500", player1Name: "Nicolas Robin", player2Name: "Manon Guérin" },
-  { teamName: "Belote & Rebelote", player1Name: "Alexandre Boyer", player2Name: "Juliette Masson" },
-  { teamName: "Surcoinche Eirb", player1Name: "Romain Fournier", player2Name: "Clara Gautier" },
-  { teamName: "Les Quatre As", player1Name: "Mathieu Perrin", player2Name: "Eva Lemoine" },
-  { teamName: "Cœur Vaillant", player1Name: "Pauline Colin", player2Name: "Julien Vidal" },
-  { teamName: "Trèfle Mécanique", player1Name: "Bastien Caron", player2Name: "Alice Picard" },
-  { teamName: "Carreau Express", player1Name: "Florian Renard", player2Name: "Anaïs Arnaud" },
-  { teamName: "Pli Suprême", player1Name: "Quentin Brunet", player2Name: "Maëlys Marty" },
-  { teamName: "160 Chuté", player1Name: "Valentin Aubert", player2Name: "Noémie Rolland" },
-  { teamName: "Les Rois du Tapis", player1Name: "Guillaume Leclerc", player2Name: "Céline Barbier" },
-  { teamName: "Pique & Cœur", player1Name: "Adrien Schmitt", player2Name: "Marine Leroux" },
-  { teamName: "Coinche Nocturne", player1Name: "Damien Bourgeois", player2Name: "Laura Dupuy" },
-  { teamName: "BAR Enseirb", player1Name: "Benoît Lemaire", player2Name: "Élise Noel" },
-  { teamName: "Les As du 9", player1Name: "Rémi Fontaine", player2Name: "Margaux Moulin" },
-  { teamName: "Impasse Maitre", player1Name: "Théo Marchand", player2Name: "Lucie Prévost" },
-];
+export const INITIAL_DEMO_CSV_SAMPLE = "";
 
 export function buildInitialDemoTeams(): TournamentTeamInput[] {
-  return INITIAL_TEAM_SEED.map((item, idx) => {
-    const cleanName = sanitizePlainName(item.teamName);
-    return {
-      id: `team-${String(idx + 1).padStart(2, "0")}`,
-      teamName: cleanName,
-      normalizedName: normalizeComparisonKey(cleanName),
-      player1Name: sanitizePlainName(item.player1Name),
-      player2Name: sanitizePlainName(item.player2Name),
-      checkedIn: true,
-      isForfeit: false,
-      seedOrder: idx + 1,
-    };
-  });
+  return [];
 }
 
 export function buildInitialTournamentMeta(): AdminTournamentMeta {
   return {
     id: "00000000-0000-4000-8000-000000000001",
     title: "Tournoi Coinch'Eirb · Soirée BAR ENSEIRB-MATMECA",
-    eventDate: "2026-11-26",
+    eventDate: "2026-11-27",
     startsAtLabel: "18h30",
     schoolYear: "2026-2027",
-    status: "pools",
-    registrationsLocked: true,
+    status: "checkin",
+    registrationsLocked: false,
     playerScoreEditingEnabled: true,
     roundOf16Threshold: 12,
     dealsPerPoolMatch: 5,

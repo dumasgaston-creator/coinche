@@ -34,6 +34,11 @@ import { useTournamentStore } from "@/lib/tournament/use-tournament-store";
 import { AnnouncementPanel } from "@/components/table/AnnouncementPanel";
 import { ScoreHistoryList } from "@/components/table/ScoreHistoryList";
 import { AbandonModal, RefereeModal } from "@/components/table/ActionModals";
+import { ClashRoyaleSoundboardBar } from "@/components/live/ClashRoyaleSoundboardBar";
+import {
+  playBuiltinSoundPreset,
+  playMatchOutcomeSound,
+} from "@/components/live/sound-engine";
 import type {
   PendingLiveAnnouncement,
   TableDealItem,
@@ -461,13 +466,13 @@ export function MaTableView() {
             apparaissent automatiquement ici.
           </p>
           <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-            <Link href="/admin" className="btn btn-primary btn-full">
-              <LockIcon size={16} />
-              <span>Ouvrir le Poste Admin pour générer les poules</span>
+            <Link href="/jouer" className="btn btn-primary btn-full">
+              <UsersIcon size={16} />
+              <span>Lancer une Partie Libre au BAR (/jouer)</span>
             </Link>
             <Link href="/classement" className="btn btn-secondary btn-full">
               <TrophyIcon size={16} />
-              <span>Voir le classement</span>
+              <span>Voir les Classements Individuel &amp; Équipe</span>
             </Link>
           </div>
         </section>
@@ -838,6 +843,7 @@ export function MaTableView() {
 
     setPendingAnnouncement(nextPending);
     setLastLiveFeedMessage(null);
+    playBuiltinSoundPreset("hog_rider");
 
     broadcastLiveAnnouncementFromStore({
       announcementId: annId,
@@ -909,6 +915,12 @@ export function MaTableView() {
       type: pendingAnnouncement.type,
       outcome,
     });
+
+    if (outcome === "passed") {
+      playMatchOutcomeSound("win");
+    } else {
+      playMatchOutcomeSound("lose");
+    }
 
     if (outcome === "passed") {
       if (pendingAnnouncement.type === "capot") {
@@ -1930,6 +1942,9 @@ export function MaTableView() {
           onResolveAnnouncement={handleResolveAnnouncement}
           onCancelPending={() => setPendingAnnouncement(null)}
         />
+
+        {/* Soundboard Clash Royale & FAAAAHHH sur la table */}
+        <ClashRoyaleSoundboardBar compact />
 
         {/* Historique des donnes */}
         <ScoreHistoryList

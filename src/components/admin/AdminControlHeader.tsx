@@ -32,7 +32,7 @@ interface AdminControlHeaderProps {
   onAdvanceToKnockout: () => void;
   onSetTournamentPhase: (status: TournamentStatus) => void;
   onThresholdChange: (nextThreshold: number) => void;
-  onResetTournament: (mode: "demo" | "clean_checkin", demoCount?: number) => void;
+  onResetTournament: () => void;
 }
 
 const TOURNAMENT_PHASE_STEPS: Array<{
@@ -50,10 +50,7 @@ const TOURNAMENT_PHASE_STEPS: Array<{
 export function AdminControlHeader(props: AdminControlHeaderProps) {
   const [editingTitle, setEditingTitle] = useState<boolean>(false);
   const [titleDraft, setTitleDraft] = useState<string>(props.tournament.title);
-  const [confirmResetMode, setConfirmResetMode] = useState<
-    "demo" | "clean_checkin" | null
-  >(null);
-  const [demoTeamCountDraft, setDemoTeamCountDraft] = useState<number>(24);
+  const [confirmCleanReset, setConfirmCleanReset] = useState<boolean>(false);
 
   const liveFormula = describeQualificationFormula(
     props.checkedInCount,
@@ -92,16 +89,16 @@ export function AdminControlHeader(props: AdminControlHeaderProps) {
         <div className="admin-auth-status">
           <span className="admin-status-dot" data-authenticated="true" />
           <span className="badge badge-pass">
-            Admin déverrouillé · {props.adminDisplayName}
+            Session chiffrée · {props.adminDisplayName}
           </span>
           {props.syncMode === "supabase" && (
             <span className="badge badge-amber tabular-nums">
-              Synchro Multi-Téléphones · Rév. #{props.syncRevision ?? 0}
+              Synchro Temps Réel · Rév. #{props.syncRevision ?? 0}
             </span>
           )}
           {props.syncMode !== "supabase" && (
             <span className="badge badge-neutral">
-              Mode local navigateur
+              Stockage local sécurisé
             </span>
           )}
         </div>
@@ -115,17 +112,9 @@ export function AdminControlHeader(props: AdminControlHeaderProps) {
           <button
             type="button"
             className="btn btn-sm btn-secondary"
-            onClick={() => setConfirmResetMode("clean_checkin")}
+            onClick={() => setConfirmCleanReset(true)}
           >
-            <span>Soirée vierge (0 pt)</span>
-          </button>
-
-          <button
-            type="button"
-            className="btn btn-sm btn-secondary"
-            onClick={() => setConfirmResetMode("demo")}
-          >
-            <span>Tournoi test (N éq.)</span>
+            <span>Remettre tournoi à zéro (0 pt)</span>
           </button>
 
           <button
@@ -139,7 +128,7 @@ export function AdminControlHeader(props: AdminControlHeaderProps) {
         </div>
       </section>
 
-      {confirmResetMode !== null && (
+      {confirmCleanReset && (
         <div className="banner banner-fail" role="alert">
           <div
             style={{
@@ -151,49 +140,15 @@ export function AdminControlHeader(props: AdminControlHeaderProps) {
               flexWrap: "wrap",
             }}
           >
-            <div style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap" }}>
-              <span>
-                {confirmResetMode === "clean_checkin" &&
-                  "Confirmer la réinitialisation complète à 0 point (phase Check-in avant 18h30) ?"}
-                {confirmResetMode === "demo" &&
-                  "Générer un tournoi test interactif avec combien d'équipes ?"}
-              </span>
-              {confirmResetMode === "demo" && (
-                <div style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}>
-                  <input
-                    type="number"
-                    min={4}
-                    max={64}
-                    aria-label="Nombre d'équipes pour le tournoi test"
-                    value={demoTeamCountDraft}
-                    onChange={(e) => {
-                      const val = Number.parseInt(e.target.value, 10);
-                      if (!Number.isNaN(val)) {
-                        setDemoTeamCountDraft(Math.max(4, Math.min(64, val)));
-                      }
-                    }}
-                    style={{
-                      width: "64px",
-                      padding: "4px 6px",
-                      borderRadius: "6px",
-                      border: "1px solid var(--border-strong)",
-                      backgroundColor: "var(--bg-surface)",
-                      color: "var(--ink-primary)",
-                      fontWeight: 800,
-                      textAlign: "center",
-                    }}
-                  />
-                  <span style={{ fontSize: "12px", fontWeight: 700 }}>
-                    équipes (ex. 20, 22, 24, 28)
-                  </span>
-                </div>
-              )}
-            </div>
+            <span>
+              Confirmer la remise à zéro complète du tournoi (0 équipe, 0 match,
+              phase Check-in avant 18h30) ?
+            </span>
             <div style={{ display: "inline-flex", gap: "8px" }}>
               <button
                 type="button"
                 className="btn btn-sm btn-secondary"
-                onClick={() => setConfirmResetMode(null)}
+                onClick={() => setConfirmCleanReset(false)}
               >
                 Annuler
               </button>
@@ -201,12 +156,11 @@ export function AdminControlHeader(props: AdminControlHeaderProps) {
                 type="button"
                 className="btn btn-sm btn-fail"
                 onClick={() => {
-                  const chosen = confirmResetMode;
-                  setConfirmResetMode(null);
-                  props.onResetTournament(chosen, demoTeamCountDraft);
+                  setConfirmCleanReset(false);
+                  props.onResetTournament();
                 }}
               >
-                Confirmer
+                Confirmer remise à zéro
               </button>
             </div>
           </div>
@@ -218,7 +172,7 @@ export function AdminControlHeader(props: AdminControlHeaderProps) {
           <div className="admin-title-block">
             <span className="eyebrow">
               <TrophyIcon size={14} />
-              <span>Poste de pilotage Coinch&apos;Eirb · Contrôle total</span>
+              <span>Poste de pilotage Coinch&apos;Eirb · Sécurité renforcée</span>
             </span>
 
             {!editingTitle && (
