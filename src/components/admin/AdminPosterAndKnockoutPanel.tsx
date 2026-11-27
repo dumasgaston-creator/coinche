@@ -9,19 +9,34 @@ import {
 import type { AdminTournamentMeta } from "@/components/admin/admin-types";
 import {
   BUILTIN_SOUND_PRESETS,
+  addCustomSoundClips,
   clearCustomSound,
   getEffectivePresetForSlot,
   playBuiltinSoundPreset,
   playLiveSound,
-  readCustomSounds,
+  readCustomSoundBank,
   readSoundPresetPrefs,
-  saveCustomSound,
+  removeCustomSoundClip,
   saveSoundPresetPref,
   type BuiltinSoundPresetId,
-  type CustomSoundsMap,
+  type CustomSoundBankMap,
+  type CustomSoundEntry,
   type LiveSoundSlot,
   type SoundPresetPrefsMap,
 } from "@/components/live/sound-engine";
+import {
+  approveCommunityMeme,
+  deleteCommunityMeme,
+  setMemeModerationRequired,
+} from "@/lib/memes/meme-bank";
+import {
+  DEFAULT_LATEST_WINNER_PHOTO_URL,
+  addWinnerPhotoToGallery,
+  readWinnersGallery,
+  removeWinnerPhotoFromGallery,
+  type WinnerPhotoRecord,
+} from "@/lib/memes/winners-gallery";
+import { useMemeBankStore } from "@/lib/memes/use-meme-bank";
 import type {
   PoolStandingSummary,
   QualificationOutcome,
@@ -103,13 +118,19 @@ export function AdminPosterAndKnockoutPanel(
   );
   const [winnerStatus, setWinnerStatus] = useState<string | null>(null);
 
-  const [customSounds, setCustomSounds] = useState<CustomSoundsMap>({});
+  const [customSoundBank, setCustomSoundBank] = useState<CustomSoundBankMap>(
+    {},
+  );
   const [presetPrefs, setPresetPrefs] = useState<SoundPresetPrefsMap>({});
   const [soundNotice, setSoundNotice] = useState<string | null>(null);
+  const [winnersGallery, setWinnersGallery] = useState<WinnerPhotoRecord[]>([]);
+  const { bank: memeBank } = useMemeBankStore();
+  const pendingMemes = memeBank.items.filter((m) => m.status === "pending");
 
   useEffect(() => {
-    setCustomSounds(readCustomSounds());
+    setCustomSoundBank(readCustomSoundBank());
     setPresetPrefs(readSoundPresetPrefs());
+    setWinnersGallery(readWinnersGallery());
   }, []);
 
   async function handlePosterFileChange(event: ChangeEvent<HTMLInputElement>) {
@@ -215,49 +236,84 @@ export function AdminPosterAndKnockoutPanel(
         winnerPhotoUrl: compressedUrl,
         winnerPhotoCaption: caption,
       });
-      setWinnerStatus("Photo des vainqueurs mise en ligne en direct !");
+      try {
+        const updatedGallery = addWinnerPhotoToGallery({
+          imageUrl: compressedUrl,
+          caption,
+        });
+        setWinnersGallery(updatedGallery);
+      } catch {
+        // Garde la photo live meme si le dossier local est plein
+      }
+      setWinnerStatus(
+        "Photo ajoutée en direct ET enregistrée dans le Dossier Vainqueurs !",
+      );
     } catch {
       setWinnerStatus("Impossible de lire cette photo.");
     }
   }
 
-  function handleSoundFileUpload(
+  async function handleSoundFileUpload(
     slot: LiveSoundSlot,
     event: ChangeEvent<HTMLInputElement>,
   ) {
-    const file = event.target.files?.[0];
-    if (file === undefined) {
+    const fileList = event.target.files;
+    if (fileList === null || fileList.length === 0) {
       return;
     }
     setSoundNotice(null);
-    if (!file.type.startsWith("audio/")) {
-      setSoundNotice("Choisis un fichier audio (.mp3, .wav ou .ogg).");
-      return;
-    }
-    if (file.size > 1_200_000) {
-      setSoundNotice("Extrait audio trop lourd (max 1,2 Mo).");
-      return;
-    }
-    const reader = new FileReader();
-    reader.onload = () => {
-      if (typeof reader.result === "string") {
-        try {
-          const updated = saveCustomSound(slot, {
-            fileName: file.name,
-            dataUrl: reader.result,
-          });
-          setCustomSounds(updated);
-          setSoundNotice(`Son "${file.name}" enregistré pour /live.`);
-        } catch (err) {
-          let msg = "Stockage local saturé.";
-          if (err instanceof Error) {
-            msg = err.message;
-          }
-          setSoundNotice(msg);
-        }
+
+    const files = Array.from(fileList);
+    const loadedEntries: CustomSoundEntry[] = [];
+    for (const file of files) {
+      if (!file.type.startsWith("audio/")) {
+        setSoundNotice(
+          `Fichier ignoré (${file.name}) : format audio (.mp3, .wav, .ogg) requis.`,
+        );
+        continue;
       }
-    };
-    reader.readAsDataURL(file);
+      if (file.size > 1_200_000) {
+        setSoundNotice(`Extrait "${file.name}" trop lourd (max 1,2 Mo).`);
+        continue;
+      }
+      const dataUrl = await new Promise<string | null>((resolve) => {
+        const reader = new FileReader();
+        reader.onerror = () => resolve(null);
+        reader.onload = () => {
+          if (typeof reader.result === "string") {
+            resolve(reader.result);
+          } else {
+            resolve(null);
+          }
+        };
+        reader.readAsDataURL(file);
+      });
+      if (dataUrl !== null) {
+        loadedEntries.push({
+          fileName: file.name,
+          dataUrl,
+        });
+      }
+    }
+
+    if (loadedEntries.length === 0) {
+      return;
+    }
+
+    try {
+      const updated = addCustomSoundClips(slot, loadedEntries);
+      setCustomSoundBank(updated);
+      setSoundNotice(
+        `${loadedEntries.length} son(s) ajouté(s) en rotation aléatoire pour /live.`,
+      );
+    } catch (err) {
+      let msg = "Stockage local saturé.";
+      if (err instanceof Error) {
+        msg = err.message;
+      }
+      setSoundNotice(msg);
+    }
+    event.target.value = "";
   }
 
   let uploadBtnText = "Changer l'affiche (JPEG/PNG/WebP)";
@@ -266,7 +322,7 @@ export function AdminPosterAndKnockoutPanel(
   }
 
   const currentWinnerPhoto =
-    props.tournament.winnerPhotoUrl ?? "/assets/media/vainqueur-precedent.jpg";
+    props.tournament.winnerPhotoUrl ?? DEFAULT_LATEST_WINNER_PHOTO_URL;
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
@@ -374,6 +430,88 @@ export function AdminPosterAndKnockoutPanel(
               )}
             </div>
           </div>
+
+          {/* Mini-galerie du Dossier Vainqueurs utilisee en aleatoire pour "Tu y es presque !" */}
+          {winnersGallery.length > 0 && (
+            <div style={{ marginTop: "10px" }}>
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  gap: "6px",
+                  marginBottom: "6px",
+                }}
+              >
+                <span style={{ fontSize: "11.5px", fontWeight: 700 }}>
+                  Dossier Vainqueurs ({winnersGallery.length} photos · tirage
+                  aléatoire « Tu y es presque ! »)
+                </span>
+              </div>
+              <div
+                style={{
+                  display: "flex",
+                  gap: "8px",
+                  flexWrap: "wrap",
+                }}
+              >
+                {winnersGallery.map((item) => (
+                  <div
+                    key={item.id}
+                    style={{
+                      position: "relative",
+                      width: "68px",
+                      height: "68px",
+                      borderRadius: "6px",
+                      overflow: "hidden",
+                      border: "1px solid var(--border-strong)",
+                      backgroundColor: "#14100e",
+                    }}
+                    title={item.caption}
+                  >
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={item.imageUrl}
+                      alt={item.caption}
+                      style={{
+                        width: "100%",
+                        height: "100%",
+                        objectFit: "contain",
+                      }}
+                    />
+                    {!item.isBuiltin && (
+                      <button
+                        type="button"
+                        aria-label={`Retirer ${item.caption}`}
+                        onClick={() =>
+                          setWinnersGallery(
+                            removeWinnerPhotoFromGallery(item.id),
+                          )
+                        }
+                        style={{
+                          position: "absolute",
+                          top: "2px",
+                          right: "2px",
+                          width: "18px",
+                          height: "18px",
+                          borderRadius: "999px",
+                          border: "none",
+                          backgroundColor: "rgba(200, 52, 43, 0.9)",
+                          color: "#fff",
+                          fontSize: "11px",
+                          fontWeight: 800,
+                          cursor: "pointer",
+                          lineHeight: 1,
+                        }}
+                      >
+                        ×
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       </section>
 
@@ -388,7 +526,7 @@ export function AdminPosterAndKnockoutPanel(
 
         <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
           {SOUND_SLOTS_META.map((item) => {
-            const custom = customSounds[item.slot];
+            const clips = customSoundBank[item.slot] ?? [];
             const activePreset = getEffectivePresetForSlot(
               item.slot,
               presetPrefs,
@@ -430,30 +568,34 @@ export function AdminPosterAndKnockoutPanel(
                       htmlFor={`sound-upload-${item.slot}`}
                       style={{ cursor: "pointer" }}
                     >
-                      MP3
+                      + MP3
                     </label>
                     <input
                       id={`sound-upload-${item.slot}`}
                       type="file"
+                      multiple
                       accept="audio/mpeg,audio/wav,audio/ogg,audio/*"
-                      onChange={(e) => handleSoundFileUpload(item.slot, e)}
+                      onChange={(e) => {
+                        void handleSoundFileUpload(item.slot, e);
+                      }}
                       style={{ display: "none" }}
                     />
-                    {custom !== undefined && (
+                    {clips.length > 0 && (
                       <button
                         type="button"
                         className="btn btn-sm btn-ghost-danger"
-                        onClick={() =>
-                          setCustomSounds(clearCustomSound(item.slot))
-                        }
+                        onClick={() => {
+                          clearCustomSound(item.slot);
+                          setCustomSoundBank(readCustomSoundBank());
+                        }}
                       >
-                        Reset
+                        Vider
                       </button>
                     )}
                   </div>
                 </div>
 
-                {custom === undefined && (
+                {clips.length === 0 && (
                   <select
                     aria-label={`Son brainrot pour ${item.label}`}
                     className="admin-auth-input"
@@ -472,9 +614,47 @@ export function AdminPosterAndKnockoutPanel(
                   </select>
                 )}
 
-                {custom !== undefined && (
-                  <div style={{ fontSize: "11px", color: "var(--status-pass)", fontWeight: 600 }}>
-                    MP3 actif : {custom.fileName}
+                {clips.length > 0 && (
+                  <div
+                    style={{
+                      display: "flex",
+                      flexWrap: "wrap",
+                      gap: "6px",
+                      alignItems: "center",
+                    }}
+                  >
+                    {clips.map((clip) => (
+                      <span
+                        key={clip.id}
+                        className="badge badge-pass"
+                        style={{
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: "6px",
+                        }}
+                      >
+                        <span>{clip.fileName}</span>
+                        <button
+                          type="button"
+                          aria-label={`Retirer ${clip.fileName}`}
+                          onClick={() =>
+                            setCustomSoundBank(
+                              removeCustomSoundClip(item.slot, clip.id),
+                            )
+                          }
+                          style={{
+                            border: "none",
+                            background: "transparent",
+                            color: "inherit",
+                            cursor: "pointer",
+                            fontWeight: 700,
+                            padding: 0,
+                          }}
+                        >
+                          ×
+                        </button>
+                      </span>
+                    ))}
                   </div>
                 )}
               </div>
@@ -486,6 +666,89 @@ export function AdminPosterAndKnockoutPanel(
             </p>
           )}
         </div>
+      </section>
+
+      {/* Modération de la Boîte à Memes communautaire */}
+      <section className="admin-panel" aria-labelledby="admin-memes-heading">
+        <div className="admin-panel-header">
+          <h2 id="admin-memes-heading" className="admin-panel-title">
+            Modération Boîte à Memes ({pendingMemes.length} en attente)
+          </h2>
+          <button
+            type="button"
+            className="btn btn-sm btn-secondary"
+            onClick={() =>
+              setMemeModerationRequired(!memeBank.moderationRequired)
+            }
+          >
+            {memeBank.moderationRequired && "Validation Admin : ON"}
+            {!memeBank.moderationRequired && "Publication libre : ON"}
+          </button>
+        </div>
+
+        {pendingMemes.length === 0 && (
+          <p className="admin-panel-subtitle">
+            Aucun meme en attente ({memeBank.items.length} memes actifs sur
+            /live).
+          </p>
+        )}
+
+        {pendingMemes.length > 0 && (
+          <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+            {pendingMemes.map((meme) => (
+              <div
+                key={meme.id}
+                className="card-alt"
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  gap: "10px",
+                  flexWrap: "wrap",
+                }}
+              >
+                <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={meme.imageUrl}
+                    alt={meme.caption}
+                    style={{
+                      width: "56px",
+                      height: "56px",
+                      objectFit: "contain",
+                      backgroundColor: "#161210",
+                      borderRadius: "6px",
+                    }}
+                  />
+                  <div>
+                    <div style={{ fontSize: "13px", fontWeight: 700 }}>
+                      {meme.caption}
+                    </div>
+                    <div style={{ fontSize: "11px", color: "var(--ink-muted)" }}>
+                      {meme.category} · par {meme.authorName}
+                    </div>
+                  </div>
+                </div>
+                <div style={{ display: "inline-flex", gap: "6px" }}>
+                  <button
+                    type="button"
+                    className="btn btn-sm btn-pass"
+                    onClick={() => approveCommunityMeme(meme.id)}
+                  >
+                    Valider
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-sm btn-ghost-danger"
+                    onClick={() => deleteCommunityMeme(meme.id)}
+                  >
+                    Refuser
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </section>
 
       <section

@@ -3,25 +3,24 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useTheme } from "@/components/theme/ThemeProvider";
-import { useTournamentStore } from "@/lib/tournament/use-tournament-store";
 import {
-  LockIcon,
   MoonIcon,
   ProjectorScreenIcon,
+  SpadeSuitIcon,
   SunIcon,
 } from "@/components/icons/Icons";
 
 /**
  * Barre d'en-tete compacte (optimisee a 375 px) :
  * - Logo abeille Coinch'Eirb (retour accueil)
+ * - Acces direct a Partie Libre au BAR (`/jouer`)
  * - Acces direct au Grand Ecran Videoprojecteur (`/live`)
- * - Acces direct au Poste Admin (`/admin`) avec compteur d'alertes arbitre en direct
  * - Bascule instantanee Mode Clair / Mode Sombre
+ * (Aucun bouton `/admin` n'est expose dans la barre publique.)
  */
 export function AppHeader() {
   const pathname = usePathname();
   const { theme, toggleTheme } = useTheme();
-  const { state, hydrated } = useTournamentStore();
 
   let toggleLabel = "Sombre";
   let toggleAria = "Passer en thème sombre";
@@ -33,14 +32,9 @@ export function AppHeader() {
     icon = <SunIcon size={16} />;
   }
 
-  let openAlertsCount = 0;
-  if (hydrated) {
-    openAlertsCount = state.alerts.filter((a) => a.status !== "resolved").length;
-  }
-
-  let adminActiveAttr = "false";
-  if (pathname.startsWith("/admin")) {
-    adminActiveAttr = "true";
+  let jouerActiveAttr = "false";
+  if (pathname.startsWith("/jouer")) {
+    jouerActiveAttr = "true";
   }
 
   return (
@@ -48,19 +42,30 @@ export function AppHeader() {
       <div className="app-header-inner">
         <Link href="/" className="brand-link" aria-label="Accueil Coinch'Eirb">
           <img
-            src="/assets/logo-coincheirb.jpg"
-            alt="Logo Coinch'Eirb"
-            width={34}
-            height={34}
+            src="/assets/media/logo-abeilles.jpg"
+            alt="Logo abeilles Coinch'Eirb"
+            width={36}
+            height={36}
             className="brand-logo"
           />
           <span className="brand-wordmark">
             <span className="brand-name">Coinch&apos;Eirb</span>
-            <span className="brand-sub">ENSEIRB-MATMECA</span>
+            <span className="brand-sub">ENSEIRB · BAR</span>
           </span>
         </Link>
 
         <div className="header-actions">
+          <Link
+            href="/jouer"
+            className="header-quick-link"
+            data-active={jouerActiveAttr}
+            title="Lancer ou compter une partie libre au BAR (/jouer)"
+          >
+            <SpadeSuitIcon size={13} />
+            <span className="header-quick-text">Partie BAR</span>
+            <span className="header-quick-text-compact">BAR</span>
+          </Link>
+
           <Link
             href="/live"
             className="header-quick-link header-quick-live"
@@ -69,24 +74,6 @@ export function AppHeader() {
             <ProjectorScreenIcon size={15} />
             <span className="header-quick-text">Grand écran</span>
             <span className="header-quick-text-compact">Live</span>
-          </Link>
-
-          <Link
-            href="/admin"
-            className="header-quick-link"
-            data-active={adminActiveAttr}
-            title="Ouvrir le poste de pilotage administrateur (/admin)"
-          >
-            <LockIcon size={14} />
-            <span>Admin</span>
-            {openAlertsCount > 0 && (
-              <span
-                className="header-alert-pill tabular-nums"
-                title={`${openAlertsCount} alerte(s) arbitre en attente`}
-              >
-                {openAlertsCount}
-              </span>
-            )}
           </Link>
 
           <button

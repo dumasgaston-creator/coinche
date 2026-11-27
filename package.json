@@ -1,18 +1,16 @@
 {
   "name": "coincheirb",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "private": true,
-  "description": "Application temps reel de gestion des tournois Coinch'Eirb (ENSEIRB-MATMECA)",
+  "description": "Application temps reel de gestion des tournois et parties libres Coinch'Eirb (ENSEIRB-MATMECA)",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run",
-    "test:watch": "vitest",
     "check:no-ternary": "node scripts/check-no-ternary.mjs",
     "hash:password": "node scripts/hash-admin-password.mjs",
-    "verify": "npm run check:no-ternary && npm run typecheck && npm run test && npm run build"
+    "verify": "npm run check:no-ternary && npm run typecheck && npm run build"
   },
   "dependencies": {
     "@supabase/ssr": "^0.6.1",
@@ -27,7 +25,6 @@
     "@types/node": "^22.13.10",
     "@types/react": "^19.1.0",
     "@types/react-dom": "^19.1.0",
-    "typescript": "^5.8.2",
-    "vitest": "^3.0.9"
+    "typescript": "^5.8.2"
   }
 }

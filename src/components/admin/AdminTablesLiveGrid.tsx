@@ -20,6 +20,7 @@ import type {
   AdminLiveFeedEntry,
   AdminMatchRecord,
 } from "@/components/admin/admin-types";
+import { deriveTableAccessCode } from "@/lib/auth/table-code";
 import type { TournamentTeamInput } from "@/lib/tournament";
 import {
   formatOptionalTeamNickname,
@@ -43,6 +44,7 @@ interface AdminTablesLiveGridProps {
     lockedByAdmin: boolean;
     forfeitTeamId: string | null;
   }) => void;
+  onUndoLastDeal?: (matchId: string) => void;
   onPushLiveAnnouncement: (params: {
     matchId: string;
     tableNumber: number;
@@ -91,6 +93,27 @@ export function AdminTablesLiveGrid(props: AdminTablesLiveGridProps) {
   const [announceSide, setAnnounceSide] = useState<"team_a" | "team_b">(
     "team_a",
   );
+  const [releaseNotice, setReleaseNotice] = useState<string | null>(null);
+
+  async function handleReleaseTableMarker(matchId: string) {
+    setReleaseNotice(null);
+    try {
+      const res = await fetch("/api/auth/table-claim", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ matchId }),
+      });
+      if (res.ok) {
+        setReleaseNotice(
+          "Téléphone marqueur libéré : un nouveau téléphone peut entrer le code Table.",
+        );
+      } else {
+        setReleaseNotice("Impossible de libérer le marqueur (session admin requise).");
+      }
+    } catch {
+      setReleaseNotice("Erreur réseau lors de la libération.");
+    }
+  }
 
   function handleSelectMatch(match: AdminMatchRecord) {
     setSelectedMatchId(match.id);
@@ -345,6 +368,58 @@ export function AdminTablesLiveGrid(props: AdminTablesLiveGridProps) {
               >
                 {selectedTeamAName} contre {selectedTeamBName}
               </h3>
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "8px",
+                  flexWrap: "wrap",
+                  marginTop: "6px",
+                }}
+              >
+                <span className="badge badge-amber tabular-nums">
+                  Code Table :{" "}
+                  {deriveTableAccessCode(
+                    selectedMatch.id,
+                    selectedMatch.tableNumber,
+                  )}
+                </span>
+                <button
+                  type="button"
+                  className="btn btn-sm btn-secondary"
+                  onClick={() => {
+                    void handleReleaseTableMarker(selectedMatch.id);
+                  }}
+                >
+                  Libérer téléphone marqueur
+                </button>
+                {props.onUndoLastDeal !== undefined &&
+                  selectedMatch.dealsPlayed > 0 && (
+                    <button
+                      type="button"
+                      className="btn btn-sm btn-secondary"
+                      onClick={() => {
+                        if (props.onUndoLastDeal !== undefined) {
+                          props.onUndoLastDeal(selectedMatch.id);
+                        }
+                      }}
+                    >
+                      Annuler dernière donne ({selectedMatch.dealsPlayed})
+                    </button>
+                  )}
+              </div>
+              {releaseNotice !== null && (
+                <p
+                  className="admin-subtitle"
+                  style={{
+                    marginTop: "4px",
+                    color: "var(--status-pass)",
+                    fontWeight: 700,
+                  }}
+                >
+                  {releaseNotice}
+                </p>
+              )}
             </div>
 
             <label

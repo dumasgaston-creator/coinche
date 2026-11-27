@@ -333,7 +333,7 @@ function buildLiveSnapshotFromUnifiedStore(
     startTimeLabel: `1er tour à ${state.tournament.startsAtLabel}`,
     posterUrl: state.tournament.posterUrl,
     winnerPhotoUrl:
-      state.tournament.winnerPhotoUrl ?? "/assets/media/vainqueur-precedent.jpg",
+      state.tournament.winnerPhotoUrl ?? "/assets/vainqueurs/vainqueur-01.jpg",
     winnerPhotoCaption:
       state.tournament.winnerPhotoCaption ?? "Derniers vainqueurs · Coinch'Eirb",
     dealsPerPoolMatch: state.tournament.dealsPerPoolMatch,
@@ -358,7 +358,11 @@ function buildLiveSnapshotFromUnifiedStore(
  * - File d'attente FIFO stricte pour les pop-ups GSAP (~4.5s chacun)
  */
 export function LiveProjectorApp() {
-  const { state: storeState, summary: storeSummary } = useTournamentStore();
+  const {
+    state: storeState,
+    summary: storeSummary,
+    syncMode,
+  } = useTournamentStore();
   const [supabaseSnapshot, setSupabaseSnapshot] =
     useState<LiveTournamentSnapshot | null>(null);
   const [connectionMode, setConnectionMode] =
@@ -762,12 +766,17 @@ export function LiveProjectorApp() {
     rotationStateText = `En pause · ${rotationConfig.modeLabel}`;
   }
 
+  let effectiveConnectionMode: RealtimeConnectionMode = connectionMode;
+  if (syncMode === "supabase") {
+    effectiveConnectionMode = "supabase";
+  }
+
   return (
     <div ref={rootRef} className="live-projector-root">
       <LiveTopBar
         activeSlideId={activeSlideId}
         phaseLabel={snapshot.phaseLabel}
-        connectionMode={connectionMode}
+        connectionMode={effectiveConnectionMode}
         isPaused={isPaused}
         isFullscreen={isFullscreen}
         soundEnabled={soundEnabled}
@@ -781,7 +790,6 @@ export function LiveProjectorApp() {
         onToggleFullscreen={handleToggleFullscreen}
         onToggleSound={handleToggleSound}
         onTriggerFirstDealPopup={handleTriggerFirstDealPopup}
-        onSimulateAnnouncement={handleSimulateAnnouncement}
       />
 
       <main className="live-main-stage">

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import type { AnnouncementType } from "@/types/database";
 import { playLivePopupTimeline } from "@/components/live/gsap-engine";
 import {
@@ -8,6 +8,15 @@ import {
   type LiveSoundSlot,
 } from "@/components/live/sound-engine";
 import type { LiveAnnouncementEvent } from "@/components/live/types";
+import {
+  pickNonRepeatingMeme,
+  readMemeBankState,
+  type MemeCategory,
+} from "@/lib/memes/meme-bank";
+import {
+  DEFAULT_LATEST_WINNER_PHOTO_URL,
+  pickRandomPreviousWinnerPhoto,
+} from "@/lib/memes/winners-gallery";
 import {
   CheckIcon,
   ClubSuitIcon,
@@ -85,11 +94,12 @@ function resolvePopupMedia(
       caption: "Coup d'envoi · Première donne",
     };
   }
-  if (event.specialKind === "elimination") {
+  if (event.specialKind === "almost_there") {
+    const pickedWinner = pickRandomPreviousWinnerPhoto();
     return {
-      src: "/assets/media/meme-capri-seum.jpg",
+      src: pickedWinner.imageUrl,
       kind: "image",
-      caption: "Capri-Seum · Le bon goût de la défaite",
+      caption: pickedWinner.caption,
     };
   }
   if (event.specialKind === "champion") {
@@ -99,48 +109,32 @@ function resolvePopupMedia(
       caption: "Champions Coinch'Eirb",
     };
   }
-  if (event.phase === "failed") {
+
+  let memeCategory: MemeCategory = "coinche";
+  if (event.specialKind === "elimination") {
+    memeCategory = "elimination";
+  } else if (event.phase === "failed") {
+    memeCategory = "chute";
+  } else if (event.announcementType === "generale") {
+    memeCategory = "generale";
+  } else if (event.announcementType === "capot") {
+    memeCategory = "capot";
+  }
+
+  const bank = readMemeBankState();
+  const picked = pickNonRepeatingMeme(bank.items, memeCategory);
+  if (picked !== null) {
     return {
-      src: "/assets/media/meme-capri-seum.jpg",
+      src: picked.imageUrl,
       kind: "image",
-      caption: "Contrat chuté · Capri-Seum",
+      caption: picked.caption,
     };
   }
-  if (event.announcementType === "generale") {
-    return {
-      src: "/assets/media/meme-generale.jpg",
-      kind: "image",
-      caption: "La main de Générale",
-    };
-  }
-  if (
-    event.announcementType === "coinche" ||
-    event.announcementType === "surcoinche"
-  ) {
-    if (event.phase === "passed") {
-      return {
-        src: "/assets/media/meme-tete-sourire.jpg",
-        kind: "image",
-        caption: "Coinche validée",
-      };
-    }
-    return {
-      src: "/assets/media/meme-voulez-vous-coincher.jpg",
-      kind: "image",
-      caption: "Voulez-vous coincher avec moi ce soir ?",
-    };
-  }
-  if (event.phase === "passed") {
-    return {
-      src: "/assets/media/meme-tete-langue.jpg",
-      kind: "image",
-      caption: "Capot passé",
-    };
-  }
+
   return {
-    src: "/assets/media/soiree-table-cartes.jpg",
+    src: "/assets/media/meme-capri-seum.jpg",
     kind: "image",
-    caption: "Annonce en cours",
+    caption: "Coinch'Eirb Live",
   };
 }
 
@@ -191,10 +185,11 @@ export function LivePopupOverlay(props: LivePopupOverlayProps) {
       holdSeconds = null;
     } else if (
       event.specialKind === "elimination" ||
+      event.specialKind === "almost_there" ||
       event.specialKind === "champion" ||
       event.announcementType === "generale"
     ) {
-      holdSeconds = 6.8;
+      holdSeconds = 6.6;
     }
 
     const timeline = playLivePopupTimeline(
@@ -231,14 +226,18 @@ export function LivePopupOverlay(props: LivePopupOverlayProps) {
   }, [event, soundEnabled, isVideoPopup]);
 
   const titleWord = getAnnouncementDisplayTitle(event.announcementType);
-  let resolvedWinnerPhoto = "/assets/media/vainqueur-precedent.jpg";
+  let resolvedWinnerPhoto = DEFAULT_LATEST_WINNER_PHOTO_URL;
   if (
     props.winnerPhotoUrl !== undefined &&
     props.winnerPhotoUrl.trim().length > 0
   ) {
     resolvedWinnerPhoto = props.winnerPhotoUrl.trim();
   }
-  const media = resolvePopupMedia(event, resolvedWinnerPhoto);
+  const media = useMemo(
+    () => resolvePopupMedia(event, resolvedWinnerPhoto),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [event.queueKey, resolvedWinnerPhoto],
+  );
 
   let cardVariantClass = "live-popup-card live-popup-announced";
   let statusBadgeIcon = <MegaphoneIcon size={18} />;
@@ -261,6 +260,14 @@ export function LivePopupOverlay(props: LivePopupOverlayProps) {
     mainHeadline = event.customHeadline ?? "CAPRI-SEUM !";
     verdictPillText = event.contractNote ?? "FIN DE PARCOURS";
     footerHint = "Capri-Seum · Le bon goût de la défaite";
+  } else if (event.specialKind === "almost_there") {
+    cardVariantClass = "live-popup-card live-popup-passed";
+    statusBadgeIcon = <TrophyIcon size={19} />;
+    topBadgeText =
+      event.customBadge ?? `MANCHE REMPORTÉE · TABLE ${event.tableNumber}`;
+    mainHeadline = event.customHeadline ?? "TU Y ES PRESQUE !";
+    verdictPillText = event.contractNote ?? "DIRECTION LE TOUR SUIVANT";
+    footerHint = `${media.caption} · Les derniers vainqueurs vous attendent`;
   } else if (event.specialKind === "champion") {
     cardVariantClass = "live-popup-card live-popup-passed";
     statusBadgeIcon = <TrophyIcon size={19} />;
@@ -287,6 +294,8 @@ export function LivePopupOverlay(props: LivePopupOverlayProps) {
   let teamLabelText = "Joueurs";
   if (event.specialKind === "elimination") {
     teamLabelText = "Éliminés";
+  } else if (event.specialKind === "almost_there") {
+    teamLabelText = "Vainqueurs de la manche";
   } else if (event.specialKind === "champion") {
     teamLabelText = "Vainqueurs";
   }

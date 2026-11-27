@@ -17,139 +17,21 @@ import {
 } from "@/components/admin/admin-types";
 import type { AnnouncementType, LivePopupPhase, MatchPhase, MatchStatus, TournamentStatus } from "@/types/database";
 
-const DETERMINISTIC_SAMPLE_SCORES: Array<[number, number]> = [
-  [740, 480],
-  [650, 510],
-  [820, 390],
-  [570, 620],
-  [910, 320],
-  [490, 680],
-  [780, 540],
-  [610, 450],
-  [840, 470],
-  [530, 710],
-];
-
 /**
- * Construit un instantane deterministe complet de 20 equipes (5 poules de 4, tables 1 a 10,
- * depart 18h30) avec des matchs termines et en cours, ainsi que 2 alertes arbitre / abandon
- * pretes a etre pilotees dans le poste de controle Admin.
+ * Construit un instantane initial vierge (0 joueur fictif, 0 match fictif, 0 alerte fictive)
+ * pret a etre alimente par les vrais joueurs de l'ENSEIRB.
  */
 export function createInitialAdminCockpitSnapshot(): AdminCockpitSnapshot {
   const tournament = buildInitialTournamentMeta();
   const teams = buildInitialDemoTeams();
-  const plan = generatePoolsAndSchedule(teams, {
-    dealsPerMatch: tournament.dealsPerPoolMatch,
-    startsAtTimeLabel: tournament.startsAtLabel,
-  });
-
-  const matches: AdminMatchRecord[] = plan.matches.map(
-    (generated: GeneratedPoolMatch, index: number) => {
-      const poolLabel = formatPoolLabel(generated.poolNumber);
-      const matchId = `match-pool-${generated.poolNumber}-r${generated.roundNumber}-t${generated.tableNumber}`;
-
-      const scorePair =
-        DETERMINISTIC_SAMPLE_SCORES[index % DETERMINISTIC_SAMPLE_SCORES.length] ?? [
-          640, 480,
-        ];
-      let scoreA = scorePair[0];
-      let scoreB = scorePair[1];
-      let status: MatchStatus = "completed";
-      let dealsPlayed = 5;
-      let winnerTeamId: string | null = generated.teamAId;
-      if (scoreB > scoreA) {
-        winnerTeamId = generated.teamBId;
-      }
-
-      if (generated.roundNumber === 3 && generated.poolNumber >= 3) {
-        status = "in_progress";
-        dealsPlayed = 3;
-        scoreA = Math.round(scoreA * 0.6);
-        scoreB = Math.round(scoreB * 0.6);
-        winnerTeamId = null;
-      }
-
-      return {
-        id: matchId,
-        phase: "pool",
-        poolNumber: generated.poolNumber,
-        poolLabel,
-        roundNumber: generated.roundNumber,
-        bracketSlot: null,
-        tableNumber: generated.tableNumber,
-        teamAId: generated.teamAId,
-        teamBId: generated.teamBId,
-        scoreTeamA: scoreA,
-        scoreTeamB: scoreB,
-        targetScore: null,
-        maxDeals: generated.maxDeals,
-        dealsPlayed,
-        isDirectFinalScore: false,
-        status,
-        winnerTeamId,
-        forfeitTeamId: null,
-        lockedByAdmin: false,
-        updatedByRole: "team",
-        updatedAtLabel: "19h14",
-      };
-    },
-  );
-
-  const alerts: AdminRefereeAlertItem[] = [
-    {
-      id: "alert-ref-01",
-      matchId: "match-pool-3-r3-t5",
-      tableNumber: 5,
-      requestingTeamId: "team-03",
-      requestingTeamName: "Dix de Der",
-      alertType: "referee_call",
-      message: "Litige sur une parlante annoncee pendant la 3e donne (160 pts).",
-      status: "open",
-      createdAtLabel: "19h12",
-      resolvedAtLabel: null,
-    },
-    {
-      id: "alert-aban-02",
-      matchId: "match-pool-5-r3-t9",
-      tableNumber: 9,
-      requestingTeamId: "team-15",
-      requestingTeamName: "Les Rois du Tapis",
-      alertType: "abandon_request",
-      message: "Demande d'abandon double-confirmee depuis le telephone de la table 9.",
-      status: "open",
-      createdAtLabel: "19h15",
-      resolvedAtLabel: null,
-    },
-  ];
-
-  const liveFeed: AdminLiveFeedEntry[] = [
-    {
-      id: "feed-01",
-      tableNumber: 1,
-      teamName: "Les Valets d'Or",
-      announcementType: "capot",
-      phase: "passed",
-      pointsAwarded: 250,
-      createdAtLabel: "19h08",
-    },
-    {
-      id: "feed-02",
-      tableNumber: 4,
-      teamName: "Surcoinche Eirb",
-      announcementType: "coinche",
-      phase: "failed",
-      pointsAwarded: 320,
-      createdAtLabel: "19h11",
-    },
-  ];
 
   return {
     tournament,
     teams,
-    pools: plan.pools,
-    matches,
-    alerts,
-    liveFeed,
+    pools: [],
+    matches: [],
+    alerts: [],
+    liveFeed: [],
     qualification: null,
     bracketNodes: [],
   };

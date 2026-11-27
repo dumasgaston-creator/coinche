@@ -1,0 +1,968 @@
+<!DOCTYPE html>
+<html lang="fr" data-theme="light">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Guide Officiel de Mise en Ligne — Coinch'Eirb (ENSEIRB-MATMECA)</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg-page: #F7F2E8;
+      --bg-card: #FFFDF8;
+      --bg-surface: #EFE8DA;
+      --bg-code: #161210;
+      --ink-primary: #181310;
+      --ink-secondary: #4E433B;
+      --ink-muted: #7C6E63;
+      --accent-amber: #E8A628;
+      --accent-amber-soft: rgba(232, 166, 40, 0.16);
+      --accent-terracotta: #A64622;
+      --status-pass: #2D7D4E;
+      --status-pass-soft: rgba(45, 125, 78, 0.14);
+      --status-fail: #C8342B;
+      --border-strong: #2B221D;
+      --border-subtle: #D8CEBE;
+      --stamp-shadow: 4px 4px 0px #181310;
+    }
+
+    [data-theme="dark"] {
+      --bg-page: #161210;
+      --bg-card: #221B17;
+      --bg-surface: #2C231E;
+      --bg-code: #0E0B0A;
+      --ink-primary: #F7F2E8;
+      --ink-secondary: #D2C5B6;
+      --ink-muted: #9C8D7E;
+      --accent-amber: #E8A628;
+      --accent-amber-soft: rgba(232, 166, 40, 0.18);
+      --accent-terracotta: #D4653B;
+      --status-pass: #399960;
+      --status-pass-soft: rgba(57, 153, 96, 0.2);
+      --status-fail: #E0483E;
+      --border-strong: #B98524;
+      --border-subtle: #3B302A;
+      --stamp-shadow: 4px 4px 0px #000000;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      padding: 0;
+      background-color: var(--bg-page);
+      color: var(--ink-primary);
+      font-family: "Plus Jakarta Sans", -apple-system, BlinkMacSystemFont, sans-serif;
+      line-height: 1.55;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* Barre flottante de progression & outils */
+    .topbar {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      background-color: #161210;
+      color: #F7F2E8;
+      border-bottom: 2px solid var(--accent-amber);
+      padding: 10px 24px;
+    }
+
+    .topbar-inner {
+      max-width: 1060px;
+      margin: 0 auto;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+
+    .brand-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .brand-logo {
+      width: 40px;
+      height: 40px;
+      border-radius: 6px;
+      object-fit: contain;
+      border: 1.5px solid var(--accent-amber);
+      background-color: #0e0b0a;
+    }
+
+    .brand-title {
+      font-family: "Barlow Condensed", sans-serif;
+      font-size: 23px;
+      font-weight: 800;
+      letter-spacing: 0.03em;
+      text-transform: uppercase;
+      color: #F7F2E8;
+      line-height: 1;
+    }
+
+    .brand-sub {
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--accent-amber);
+    }
+
+    .progress-wrap {
+      flex: 1 1 240px;
+      max-width: 340px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .progress-label {
+      display: flex;
+      justify-content: space-between;
+      font-size: 11.5px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: #D2C5B6;
+    }
+
+    .progress-track {
+      height: 8px;
+      border-radius: 4px;
+      background-color: #2E2520;
+      overflow: hidden;
+      border: 1px solid #4A3C33;
+    }
+
+    .progress-fill {
+      height: 100%;
+      width: 0%;
+      background-color: var(--accent-amber);
+      transition: width 0.25s ease;
+    }
+
+    .topbar-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 7px;
+      font-family: "Plus Jakarta Sans", sans-serif;
+      font-size: 13px;
+      font-weight: 700;
+      padding: 8px 14px;
+      border-radius: 5px;
+      cursor: pointer;
+      text-decoration: none;
+      transition: transform 0.1s ease, background-color 0.15s ease;
+      border: 2px solid var(--border-strong);
+    }
+
+    .btn:active {
+      transform: translate(2px, 2px);
+    }
+
+    .btn-amber {
+      background-color: var(--accent-amber);
+      color: #161210;
+      border-color: #161210;
+      box-shadow: 2px 2px 0px #000;
+    }
+
+    .btn-ghost {
+      background-color: #261F1B;
+      color: #F7F2E8;
+      border-color: #524339;
+    }
+
+    .btn-pass {
+      background-color: var(--status-pass);
+      color: #FFFDF8;
+      border-color: #161210;
+    }
+
+    .container {
+      max-width: 1060px;
+      margin: 0 auto;
+      padding: 28px 20px 64px;
+    }
+
+    /* Hero éditorial */
+    .hero-card {
+      background-color: #161210;
+      color: #F7F2E8;
+      border: 2px solid var(--border-strong);
+      border-radius: 8px;
+      padding: 28px 30px;
+      box-shadow: var(--stamp-shadow);
+      margin-bottom: 26px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .hero-kicker {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 12px;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--accent-amber);
+      background-color: rgba(232, 166, 40, 0.14);
+      border: 1px solid var(--accent-amber);
+      padding: 4px 10px;
+      border-radius: 4px;
+    }
+
+    .hero-title {
+      font-family: "Barlow Condensed", sans-serif;
+      font-size: clamp(32px, 5vw, 48px);
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.01em;
+      line-height: 1.02;
+      margin: 12px 0 10px;
+      color: #FFFDF8;
+    }
+
+    .hero-lead {
+      font-size: 15px;
+      color: #D8CBB8;
+      max-width: 760px;
+      margin: 0 0 18px;
+    }
+
+    .hero-links {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+
+    /* Grille de résumé des fonctionnalités */
+    .features-strip {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 12px;
+      margin-bottom: 28px;
+    }
+
+    .feature-box {
+      background-color: var(--bg-card);
+      border: 2px solid var(--border-strong);
+      border-radius: 6px;
+      padding: 14px 16px;
+      box-shadow: 3px 3px 0px var(--border-strong);
+    }
+
+    .feature-tag {
+      font-size: 11px;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+      color: var(--accent-terracotta);
+    }
+
+    .feature-title {
+      font-family: "Barlow Condensed", sans-serif;
+      font-size: 21px;
+      font-weight: 800;
+      text-transform: uppercase;
+      margin: 3px 0 5px;
+    }
+
+    .feature-desc {
+      font-size: 12.8px;
+      color: var(--ink-secondary);
+      margin: 0;
+    }
+
+    /* Cartes d'étapes */
+    .step-card {
+      background-color: var(--bg-card);
+      border: 2px solid var(--border-strong);
+      border-radius: 8px;
+      padding: 24px 26px;
+      margin-bottom: 22px;
+      box-shadow: var(--stamp-shadow);
+      transition: border-color 0.2s ease;
+    }
+
+    .step-card[data-done="true"] {
+      border-color: var(--status-pass);
+    }
+
+    .step-header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 14px;
+      flex-wrap: wrap;
+      border-bottom: 2px solid var(--border-subtle);
+      padding-bottom: 14px;
+      margin-bottom: 16px;
+    }
+
+    .step-title-group {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .step-num {
+      font-family: "Barlow Condensed", sans-serif;
+      font-size: 26px;
+      font-weight: 800;
+      width: 44px;
+      height: 44px;
+      border-radius: 6px;
+      background-color: var(--accent-amber);
+      color: #161210;
+      border: 2px solid #161210;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+
+    .step-card[data-done="true"] .step-num {
+      background-color: var(--status-pass);
+      color: #FFFDF8;
+    }
+
+    .step-kicker {
+      font-size: 11.5px;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+      color: var(--accent-terracotta);
+    }
+
+    .step-heading {
+      font-family: "Barlow Condensed", sans-serif;
+      font-size: 27px;
+      font-weight: 800;
+      text-transform: uppercase;
+      margin: 0;
+      line-height: 1.08;
+    }
+
+    .check-label {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 13px;
+      font-weight: 800;
+      padding: 7px 12px;
+      border-radius: 5px;
+      border: 2px solid var(--border-strong);
+      background-color: var(--bg-surface);
+      cursor: pointer;
+      user-select: none;
+    }
+
+    .check-label input {
+      width: 17px;
+      height: 17px;
+      accent-color: var(--status-pass);
+      cursor: pointer;
+    }
+
+    /* Blocs de code avec bouton Copier */
+    .code-block {
+      background-color: var(--bg-code);
+      color: #F7F2E8;
+      border: 2px solid var(--border-strong);
+      border-radius: 6px;
+      margin: 12px 0;
+      overflow: hidden;
+    }
+
+    .code-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      padding: 7px 12px;
+      background-color: #241D19;
+      border-bottom: 1px solid #3D312A;
+      font-size: 11.5px;
+      font-weight: 700;
+      color: #D2C5B6;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .copy-btn {
+      font-family: "Plus Jakarta Sans", sans-serif;
+      font-size: 11.5px;
+      font-weight: 800;
+      padding: 4px 10px;
+      border-radius: 4px;
+      border: 1px solid var(--accent-amber);
+      background-color: rgba(232, 166, 40, 0.16);
+      color: var(--accent-amber);
+      cursor: pointer;
+    }
+
+    .copy-btn:hover {
+      background-color: var(--accent-amber);
+      color: #161210;
+    }
+
+    .copy-btn[data-copied="true"] {
+      background-color: var(--status-pass);
+      border-color: var(--status-pass);
+      color: #FFFDF8;
+    }
+
+    pre {
+      margin: 0;
+      padding: 14px 16px;
+      font-family: "JetBrains Mono", monospace;
+      font-size: 13px;
+      line-height: 1.5;
+      overflow-x: auto;
+      color: #F7F2E8;
+    }
+
+    /* Tableau des variables Vercel */
+    .env-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 14px 0;
+      font-size: 13.5px;
+    }
+
+    .env-table th,
+    .env-table td {
+      border: 1.5px solid var(--border-strong);
+      padding: 10px 12px;
+      text-align: left;
+      vertical-align: middle;
+    }
+
+    .env-table th {
+      background-color: var(--bg-surface);
+      font-family: "Barlow Condensed", sans-serif;
+      font-size: 16px;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+
+    .mono-pill {
+      font-family: "JetBrains Mono", monospace;
+      font-size: 12.2px;
+      font-weight: 600;
+      background-color: var(--bg-surface);
+      padding: 3px 7px;
+      border-radius: 4px;
+      border: 1px solid var(--border-subtle);
+      word-break: break-all;
+    }
+
+    .interactive-box {
+      background-color: var(--bg-surface);
+      border: 1.5px solid var(--border-strong);
+      border-radius: 6px;
+      padding: 14px 16px;
+      margin: 12px 0;
+    }
+
+    .input-row {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-top: 8px;
+    }
+
+    .text-input {
+      flex: 1 1 220px;
+      padding: 8px 12px;
+      border-radius: 5px;
+      border: 1.5px solid var(--border-strong);
+      background-color: var(--bg-card);
+      color: var(--ink-primary);
+      font-family: "JetBrains Mono", monospace;
+      font-size: 13px;
+    }
+
+    .alert-box {
+      border-left: 4px solid var(--accent-amber);
+      background-color: var(--accent-amber-soft);
+      padding: 12px 14px;
+      border-radius: 0 6px 6px 0;
+      font-size: 13.5px;
+      margin: 12px 0;
+    }
+
+    .suits-divider {
+      text-align: center;
+      font-size: 18px;
+      letter-spacing: 10px;
+      color: var(--accent-amber);
+      margin: 26px 0;
+    }
+
+    @media print {
+      .topbar,
+      .no-print {
+        display: none !important;
+      }
+      body {
+        background-color: #FFFFFF;
+        color: #000000;
+      }
+      .container {
+        max-width: 100%;
+        padding: 0;
+      }
+      .step-card,
+      .hero-card,
+      .feature-box {
+        box-shadow: none !important;
+        break-inside: avoid;
+        page-break-inside: avoid;
+      }
+    }
+  </style>
+</head>
+<body>
+  <!-- BARRE SUPÉRIEURE INTERACTIVE -->
+  <header class="topbar">
+    <div class="topbar-inner">
+      <div class="brand-row">
+        <img src="public/assets/media/logo-abeilles.jpg" alt="Logo Coinch'Eirb" class="brand-logo" onerror="this.style.display='none'" />
+        <div>
+          <div class="brand-title">Coinch'Eirb · Guide de Mise en Ligne</div>
+          <div class="brand-sub">ENSEIRB-MATMECA · GitHub + Vercel + Sécurité Multi-Facteurs</div>
+        </div>
+      </div>
+
+      <div class="progress-wrap">
+        <div class="progress-label">
+          <span>Progression mise en ligne</span>
+          <span id="progress-text">0 / 5 étapes (0%)</span>
+        </div>
+        <div class="progress-track">
+          <div class="progress-fill" id="progress-fill"></div>
+        </div>
+      </div>
+
+      <div class="topbar-actions">
+        <button type="button" class="btn btn-ghost" onclick="toggleTheme()" id="theme-btn">
+          Mode Sombre
+        </button>
+        <button type="button" class="btn btn-amber" onclick="window.print()">
+          Imprimer / Sauver en PDF
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <main class="container">
+    <!-- HERO ÉDITORIAL -->
+    <section class="hero-card">
+      <span class="hero-kicker">♠ ♥ ♦ ♣ Prêt pour la production · Zéro joueur fictif · Sécurité Anti-Hack</span>
+      <h1 class="hero-title">Mettre Coinch'Eirb sur Internet en 5 étapes</h1>
+      <p class="hero-lead">
+        Suis ce guide de haut en bas. Chaque commande et chaque clé de sécurité possède un bouton
+        <strong>Copier en 1 clic</strong>. Coche chaque étape au fur et à mesure jusqu'à la mise en ligne finale sur Vercel.
+      </p>
+      <div class="hero-links no-print">
+        <a href="https://github.com/dumasgaston-creator/coinche" target="_blank" rel="noopener noreferrer" class="btn btn-amber">
+          Ouvrir ton GitHub (dumasgaston-creator/coinche)
+        </a>
+        <a href="https://vercel.com/new" target="_blank" rel="noopener noreferrer" class="btn btn-pass">
+          Déployer sur Vercel (vercel.com/new)
+        </a>
+        <a href="https://supabase.com/dashboard" target="_blank" rel="noopener noreferrer" class="btn btn-ghost">
+          Dashboard Supabase (Optionnel)
+        </a>
+      </div>
+    </section>
+
+    <!-- RÉSUMÉ DES 4 PILIERS INSTALLÉS -->
+    <section class="features-strip" aria-label="Fonctionnalités prêtes">
+      <article class="feature-box">
+        <span class="feature-tag">1. Sécurité /admin</span>
+        <h2 class="feature-title">Triple Verrou Serveur</h2>
+        <p class="feature-desc">
+          Aucun bouton Admin public. Accès protégé par <strong>Identifiant Bureau + Mot de passe scrypt + Code PIN à 6 chiffres</strong> + Pare-feu Edge + Anti-Bruteforce 30 min.
+        </p>
+      </article>
+      <article class="feature-box">
+        <span class="feature-tag">2. Remise à zéro</span>
+        <h2 class="feature-title">0 Joueur Fictif</h2>
+        <p class="feature-desc">
+          Tous les tests et joueurs fictifs ont été purgés. L'application se construit à 100 % avec vos vrais prénoms au BAR et en tournoi.
+        </p>
+      </article>
+      <article class="feature-box">
+        <span class="feature-tag">3. Double Classement</span>
+        <h2 class="feature-title">Équipes &amp; Individuel</h2>
+        <p class="feature-desc">
+          Podium des <strong>équipes qui gagnent le plus à l'ENSEIRB</strong> + Classement Individuel + Fiche Partenaire &amp; Ajout d'un coéquipier quand tu es connecté.
+        </p>
+      </article>
+      <article class="feature-box">
+        <span class="feature-tag">4. Vraie Banque Audio</span>
+        <h2 class="feature-title">Clash Royale &amp; FAAAAHHH</h2>
+        <p class="feature-desc">
+          16 vrais MP3/M4A : Roi qui rigole (<code>HEHEHEHA</code>) quand on gagne, vrai cri <code>FAAAAHHH</code> quand on perd, Roi qui pleure, <code>HOG RIDER</code> et audio vidéo BAR.
+        </p>
+      </article>
+    </section>
+
+    <!-- ÉTAPE 1 -->
+    <section class="step-card" id="step-card-1" data-done="false">
+      <div class="step-header">
+        <div class="step-title-group">
+          <span class="step-num">1</span>
+          <div>
+            <span class="step-kicker">Sécurité Administrateur</span>
+            <h2 class="step-heading">Générer l'empreinte scrypt de ton mot de passe Admin</h2>
+          </div>
+        </div>
+        <label class="check-label no-print">
+          <input type="checkbox" onchange="toggleStep(1, this.checked)" id="chk-1" />
+          <span>Étape 1 terminée</span>
+        </label>
+      </div>
+
+      <p>
+        Pour que même quelqu'un qui lit ton code sur GitHub ne connaisse jamais ton mot de passe <code>/admin</code>,
+        on ne stocke que son <strong>empreinte cryptographique <code>scrypt</code></strong> dans Vercel.
+      </p>
+
+      <div class="interactive-box no-print">
+        <strong>Préparateur de commande :</strong> tape ci-dessous le mot de passe Admin secret que tu veux utiliser :
+        <div class="input-row">
+          <input
+            type="text"
+            id="custom-pwd-input"
+            class="text-input"
+            value="MonMotDePasseSecretEirb2026!"
+            oninput="updatePwdCommand()"
+            placeholder="Tape ton futur mot de passe Admin..."
+          />
+        </div>
+      </div>
+
+      <p>Copie-colle cette commande dans ton <strong>Terminal</strong> Mac :</p>
+      <div class="code-block">
+        <div class="code-bar">
+          <span>Terminal macOS — Générer le hash scrypt</span>
+          <button type="button" class="copy-btn no-print" onclick="copyCode('cmd-step-1', this)">Copier la commande</button>
+        </div>
+        <pre id="cmd-step-1">cd /Users/gast/Projets/coincheirb
+npm run hash:password -- "MonMotDePasseSecretEirb2026!"</pre>
+      </div>
+
+      <div class="alert-box">
+        <strong>Important :</strong> Le terminal va t'afficher une ligne qui commence par <code>scrypt$...</code>.
+        Garde-la sous les yeux : tu vas la coller dans Vercel à l'Étape 3 !
+      </div>
+    </section>
+
+    <!-- ÉTAPE 2 -->
+    <section class="step-card" id="step-card-2" data-done="false">
+      <div class="step-header">
+        <div class="step-title-group">
+          <span class="step-num">2</span>
+          <div>
+            <span class="step-kicker">Dépôt GitHub (dumasgaston-creator/coinche)</span>
+            <h2 class="step-heading">Enregistrer et pousser le code final sur GitHub</h2>
+          </div>
+        </div>
+        <label class="check-label no-print">
+          <input type="checkbox" onchange="toggleStep(2, this.checked)" id="chk-2" />
+          <span>Étape 2 terminée</span>
+        </label>
+      </div>
+
+      <p>
+        Ton dépôt est déjà relié à <code>https://github.com/dumasgaston-creator/coinche.git</code>.
+        Copie-colle ce bloc entier dans ton <strong>Terminal</strong> pour tout sauvegarder et mettre à jour la branche principale <code>main</code> :
+      </p>
+
+      <div class="code-block">
+        <div class="code-bar">
+          <span>Terminal macOS — Commit, Merge &amp; Push vers GitHub</span>
+          <button type="button" class="copy-btn no-print" onclick="copyCode('cmd-step-2', this)">Copier tout le bloc</button>
+        </div>
+        <pre id="cmd-step-2">cd /Users/gast/Projets/coincheirb
+
+git add -A
+git commit -m "feat: version production securisee, remise a zero, classements equipe/individuel, ajout partenaire et sons Clash Royale/FAAAAHHH"
+
+git checkout main
+git merge feat/integration-complete-v1 -m "Release production Coinch'Eirb"
+git push origin main</pre>
+      </div>
+    </section>
+
+    <!-- ÉTAPE 3 -->
+    <section class="step-card" id="step-card-3" data-done="false">
+      <div class="step-header">
+        <div class="step-title-group">
+          <span class="step-num">3</span>
+          <div>
+            <span class="step-kicker">Hébergement HTTPS Gratuit</span>
+            <h2 class="step-heading">Déployer sur Vercel avec tes 5 variables de sécurité</h2>
+          </div>
+        </div>
+        <label class="check-label no-print">
+          <input type="checkbox" onchange="toggleStep(3, this.checked)" id="chk-3" />
+          <span>Étape 3 terminée</span>
+        </label>
+      </div>
+
+      <ol>
+        <li>Ouvre 👉 <a href="https://vercel.com/new" target="_blank" rel="noopener noreferrer"><strong>https://vercel.com/new</strong></a> et connecte-toi avec ton compte <strong>GitHub</strong>.</li>
+        <li>Clique sur <strong>Import</strong> à côté de ton dépôt <strong><code>dumasgaston-creator/coinche</code></strong>.</li>
+        <li>Ouvre le menu déroulant <strong>Environment Variables</strong> et colle ces <strong>5 variables</strong> avant de cliquer sur <strong>Deploy</strong> :</li>
+      </ol>
+
+      <table class="env-table">
+        <thead>
+          <tr>
+            <th>Nom de la variable (Name)</th>
+            <th>Valeur à coller (Value)</th>
+            <th class="no-print">Action</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><span class="mono-pill" id="env-name-1">SESSION_HMAC_SECRET</span></td>
+            <td>
+              <span class="mono-pill" id="env-val-1">9f4c8e2a7b1d6f3e5a0c9b8d7e6f5a4b3c2d1e0f9a8b7c6d5e4f3a2b1c0d9e8f</span>
+            </td>
+            <td class="no-print">
+              <button type="button" class="copy-btn" onclick="copyCode('env-val-1', this)">Copier clé</button>
+              <button type="button" class="copy-btn" onclick="regenerateHmacSecret()" style="margin-left:4px;">Régénérer</button>
+            </td>
+          </tr>
+          <tr>
+            <td><span class="mono-pill">ADMIN_IDENTIFIER</span></td>
+            <td><span class="mono-pill" id="env-val-2">bureau-coincheirb</span> <br/><small>(ou l'identifiant secret de ton choix)</small></td>
+            <td class="no-print">
+              <button type="button" class="copy-btn" onclick="copyCode('env-val-2', this)">Copier</button>
+            </td>
+          </tr>
+          <tr>
+            <td><span class="mono-pill">ADMIN_SECURITY_PIN</span></td>
+            <td><span class="mono-pill" id="env-val-3">331830</span> <br/><small>(ou le code PIN à 6 chiffres de ton choix)</small></td>
+            <td class="no-print">
+              <button type="button" class="copy-btn" onclick="copyCode('env-val-3', this)">Copier</button>
+            </td>
+          </tr>
+          <tr>
+            <td><span class="mono-pill">ADMIN_BOOTSTRAP_PASSWORD_HASH</span></td>
+            <td>Colle ici ta ligne <strong><code>scrypt$...</code></strong> générée à l'Étape 1</td>
+            <td class="no-print">
+              <span style="font-size:12px;color:var(--ink-muted);">Depuis Étape 1</span>
+            </td>
+          </tr>
+          <tr>
+            <td><span class="mono-pill">NEXT_PUBLIC_SITE_URL</span></td>
+            <td><span class="mono-pill" id="env-val-5">https://coincheirb.vercel.app</span> <br/><small>(ou l'adresse <code>.vercel.app</code> choisie)</small></td>
+            <td class="no-print">
+              <button type="button" class="copy-btn" onclick="copyCode('env-val-5', this)">Copier</button>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+
+      <p>
+        Clique ensuite sur <strong>Deploy</strong> : en 45 secondes, ton site est en ligne et protégé !
+      </p>
+    </section>
+
+    <!-- ÉTAPE 4 -->
+    <section class="step-card" id="step-card-4" data-done="false">
+      <div class="step-header">
+        <div class="step-title-group">
+          <span class="step-num">4</span>
+          <div>
+            <span class="step-kicker">Base Temps Réel Multi-Téléphones (Recommandé pour 40-100 joueurs)</span>
+            <h2 class="step-heading">Connecter Supabase Gratuit en 3 minutes</h2>
+          </div>
+        </div>
+        <label class="check-label no-print">
+          <input type="checkbox" onchange="toggleStep(4, this.checked)" id="chk-4" />
+          <span>Étape 4 terminée</span>
+        </label>
+      </div>
+
+      <p>
+        Pour que les 40 à 100 téléphones de la soirée et le vidéoprojecteur <code>/live</code> partagent une base PostgreSQL persistante :
+      </p>
+      <ol>
+        <li>Crée un projet gratuit sur 👉 <a href="https://supabase.com/dashboard" target="_blank" rel="noopener noreferrer"><strong>https://supabase.com/dashboard</strong></a>.</li>
+        <li>Ouvre <strong>SQL Editor &gt; New query</strong> et exécute dans l'ordre les 3 fichiers SQL situés dans ton dossier <code>supabase/migrations/</code> :
+          <ul>
+            <li><code>supabase/migrations/0001_initial_schema_and_rls.sql</code></li>
+            <li><code>supabase/migrations/202611250002_tournament_live_state.sql</code></li>
+            <li><code>supabase/migrations/202611250003_club_accounts_and_table_locks.sql</code></li>
+          </ul>
+        </li>
+        <li>Dans Supabase (<strong>Project Settings &gt; API</strong>), copie tes 3 clés et ajoute-les dans <strong>Vercel &gt; Settings &gt; Environment Variables</strong> :
+          <ul>
+            <li><code>NEXT_PUBLIC_SUPABASE_URL</code></li>
+            <li><code>NEXT_PUBLIC_SUPABASE_ANON_KEY</code></li>
+            <li><code>SUPABASE_SERVICE_ROLE_KEY</code></li>
+          </ul>
+        </li>
+        <li>Clique sur <strong>Redeploy</strong> dans Vercel.</li>
+      </ol>
+    </section>
+
+    <!-- ÉTAPE 5 -->
+    <section class="step-card" id="step-card-5" data-done="false">
+      <div class="step-header">
+        <div class="step-title-group">
+          <span class="step-num">5</span>
+          <div>
+            <span class="step-kicker">Utilisation au BAR &amp; en Tournoi</span>
+            <h2 class="step-heading">Partager le lien à l'ENSEIRB &amp; piloter ton site</h2>
+          </div>
+        </div>
+        <label class="check-label no-print">
+          <input type="checkbox" onchange="toggleStep(5, this.checked)" id="chk-5" />
+          <span>Étape 5 terminée</span>
+        </label>
+      </div>
+
+      <ul>
+        <li>
+          <strong>Lien à cliquer et QR Code intégrés au site :</strong> sur l'accueil <code>/</code>, sur <code>/jouer</code> et sur <code>/classement</code>, le bandeau <em>« Inviter n'importe qui sur Coinch'Eirb »</em> permet de copier le lien en 1 clic, de l'envoyer sur <strong>WhatsApp</strong>, d'envoyer un lien direct <strong>« Jouer avec moi »</strong> (<code>/jouer?partenaire=TonPrenom</code>) ou d'afficher le <strong>QR Code BAR</strong>.
+        </li>
+        <li>
+          <strong>Ajouter la personne avec qui tu joues (quand tu es connecté) :</strong> connecte ton compte sur <code>/jouer</code>, <code>/equipe</code> ou <code>/classement</code>, puis clique sur <strong><code>+ Ajouter un partenaire / joueur</code></strong>. Tu peux ajouter n'importe quel étudiant même si tu n'es pas lui, voir votre fiche d'alchimie duo et créer votre équipe officielle dans le <strong>Classement par Équipe ENSEIRB</strong> !
+        </li>
+        <li>
+          <strong>Accéder à ton poste <code>/admin</code> secret :</strong> tape directement <code>/admin</code> à la fin de l'URL de ton site (ex. <code>https://coincheirb.vercel.app/admin</code>) et entre tes <strong>3 secrets</strong> (Identifiant Bureau + Mot de passe maître + Code PIN à 6 chiffres).
+        </li>
+      </ul>
+    </section>
+
+    <div class="suits-divider" aria-hidden="true">♠ ♥ ♦ ♣</div>
+  </main>
+
+  <script>
+    const STORAGE_KEY = "coincheirb-deploy-guide-progress-v1";
+
+    function updatePwdCommand() {
+      const input = document.getElementById("custom-pwd-input");
+      const pre = document.getElementById("cmd-step-1");
+      if (!input || !pre) return;
+      const safeVal = input.value.replace(/"/g, '\\"');
+      pre.textContent = 'cd /Users/gast/Projets/coincheirb\nnpm run hash:password -- "' + safeVal + '"';
+    }
+
+    function regenerateHmacSecret() {
+      const bytes = new Uint8Array(32);
+      window.crypto.getRandomValues(bytes);
+      let hex = "";
+      for (let i = 0; i < bytes.length; i++) {
+        hex += bytes[i].toString(16).padStart(2, "0");
+      }
+      const el = document.getElementById("env-val-1");
+      if (el) el.textContent = hex;
+    }
+
+    function copyCode(elementId, btn) {
+      const target = document.getElementById(elementId);
+      if (!target) return;
+      const text = target.textContent || "";
+      navigator.clipboard.writeText(text).then(() => {
+        const oldText = btn.textContent;
+        btn.setAttribute("data-copied", "true");
+        btn.textContent = "Copié !";
+        setTimeout(() => {
+          btn.removeAttribute("data-copied");
+          btn.textContent = oldText;
+        }, 2000);
+      });
+    }
+
+    function toggleStep(stepNum, checked) {
+      const card = document.getElementById("step-card-" + stepNum);
+      if (card) {
+        card.setAttribute("data-done", checked ? "true" : "false");
+      }
+      saveProgress();
+      refreshProgressUI();
+    }
+
+    function saveProgress() {
+      const state = {};
+      for (let i = 1; i <= 5; i++) {
+        const chk = document.getElementById("chk-" + i);
+        state[i] = chk ? chk.checked : false;
+      }
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+      } catch (e) {}
+    }
+
+    function loadProgress() {
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (!raw) return;
+        const state = JSON.parse(raw);
+        for (let i = 1; i <= 5; i++) {
+          const chk = document.getElementById("chk-" + i);
+          const card = document.getElementById("step-card-" + i);
+          if (chk && state[i]) {
+            chk.checked = true;
+            if (card) card.setAttribute("data-done", "true");
+          }
+        }
+      } catch (e) {}
+      refreshProgressUI();
+    }
+
+    function refreshProgressUI() {
+      let done = 0;
+      for (let i = 1; i <= 5; i++) {
+        const chk = document.getElementById("chk-" + i);
+        if (chk && chk.checked) done++;
+      }
+      const pct = Math.round((done / 5) * 100);
+      const fill = document.getElementById("progress-fill");
+      const text = document.getElementById("progress-text");
+      if (fill) fill.style.width = pct + "%";
+      if (text) text.textContent = done + " / 5 étapes (" + pct + "%)";
+    }
+
+    function toggleTheme() {
+      const html = document.documentElement;
+      const btn = document.getElementById("theme-btn");
+      const current = html.getAttribute("data-theme");
+      if (current === "dark") {
+        html.setAttribute("data-theme", "light");
+        if (btn) btn.textContent = "Mode Sombre";
+      } else {
+        html.setAttribute("data-theme", "dark");
+        if (btn) btn.textContent = "Mode Clair";
+      }
+    }
+
+    loadProgress();
+  </script>
+</body>
+</html>

@@ -14,7 +14,6 @@ interface AdminRefereeAlertsPanelProps {
     alertId: string,
     resolution: "acknowledge" | "resolve" | "confirm_forfeit",
   ) => void;
-  onSimulateIncomingAlert: (alertType: "referee_call" | "abandon_request") => void;
 }
 
 export function AdminRefereeAlertsPanel(props: AdminRefereeAlertsPanelProps) {
@@ -43,8 +42,9 @@ export function AdminRefereeAlertsPanel(props: AdminRefereeAlertsPanelProps) {
       </div>
 
       <p className="admin-panel-subtitle">
-        Signaux prioritaires envoyes en temps reel depuis l&apos;ecran mobile{" "}
-        <strong>Ma table</strong> (`Appeler un arbitre` ou `Abandon` double-confirme).
+        Signaux prioritaires envoyés en temps réel depuis l&apos;écran mobile{" "}
+        <strong>Ma table</strong> (<code>Appeler un arbitre</code> ou{" "}
+        <code>Abandon</code> double-confirmé).
       </p>
 
       <div className="admin-alerts-list">
@@ -71,7 +71,7 @@ export function AdminRefereeAlertsPanel(props: AdminRefereeAlertsPanelProps) {
             statusLabel = "En prise en charge";
           } else if (alert.status === "resolved") {
             statusBadgeClass = "badge badge-pass";
-            statusLabel = `Resolue (${alert.resolvedAtLabel ?? "OK"})`;
+            statusLabel = `Résolue (${alert.resolvedAtLabel ?? "OK"})`;
           }
 
           return (
@@ -118,7 +118,7 @@ export function AdminRefereeAlertsPanel(props: AdminRefereeAlertsPanelProps) {
                     onClick={() => props.onHandleAlert(alert.id, "resolve")}
                   >
                     <CheckIcon size={14} />
-                    <span>Resoudre</span>
+                    <span>Résoudre</span>
                   </button>
 
                   {alert.alertType === "abandon_request" && (
@@ -138,31 +138,6 @@ export function AdminRefereeAlertsPanel(props: AdminRefereeAlertsPanelProps) {
             </article>
           );
         })}
-      </div>
-
-      <div
-        style={{
-          display: "flex",
-          flexWrap: "wrap",
-          gap: "6px",
-          paddingTop: "6px",
-          borderTop: "1px solid var(--border-subtle)",
-        }}
-      >
-        <button
-          type="button"
-          className="btn btn-sm btn-secondary"
-          onClick={() => props.onSimulateIncomingAlert("referee_call")}
-        >
-          <span>+ Tester appel arbitre</span>
-        </button>
-        <button
-          type="button"
-          className="btn btn-sm btn-ghost-danger"
-          onClick={() => props.onSimulateIncomingAlert("abandon_request")}
-        >
-          <span>+ Tester abandon table</span>
-        </button>
       </div>
     </section>
   );

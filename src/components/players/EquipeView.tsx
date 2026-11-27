@@ -2,6 +2,9 @@
 
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import Link from "next/link";
+import { ClubAccountGateCard } from "@/components/auth/ClubAccountGateCard";
+import { PartnerDiscoveryAndAddCard } from "@/components/players/PartnerDiscoveryAndAddCard";
+import { useCasualGamesStore } from "@/lib/casual/use-casual-store";
 import { normalizeComparisonKey } from "@/lib/security/sanitize";
 import {
   findUnifiedTeam,
@@ -62,6 +65,8 @@ function formatRankLabel(rank: number | null, poolSize: number): string {
  */
 export function EquipeView() {
   const { state, summary, hydrated } = useTournamentStore();
+  const { games: casualGames, directory: playerDirectory } =
+    useCasualGamesStore();
   const [selectedTeamId, setSelectedTeamId] = useState<string>("");
   const [quickFirstName, setQuickFirstName] = useState<string>("");
   const [isServerSession, setIsServerSession] = useState<boolean>(false);
@@ -307,13 +312,44 @@ export function EquipeView() {
   if (activeTeam === null) {
     return (
       <div className="container-mobile">
-        <section className="card-ruled">
-          <span className="eyebrow">Mon équipe</span>
-          <p style={{ margin: "6px 0 0", fontSize: "14px" }}>
-            Aucune équipe inscrite pour le moment. Ajoutez ou importez les
-            équipes dans le poste Admin.
-          </p>
-        </section>
+        <div className="players-stack">
+          <ClubAccountGateCard
+            title="Mon compte Coinch'Eirb (pseudo + mot de passe)"
+            compact
+          />
+          <PartnerDiscoveryAndAddCard
+            tournamentState={state}
+            casualGames={casualGames}
+            directory={playerDirectory}
+            onPartnerReady={(info) => {
+              if (info.teamId !== null) {
+                setSelectedTeamId(info.teamId);
+              }
+            }}
+          />
+          <section className="card-ruled">
+            <span className="eyebrow">Mon équipe · Démarrage à zéro</span>
+            <h1 className="section-title" style={{ marginTop: "6px" }}>
+              Crée ton binôme ENSEIRB
+            </h1>
+            <p style={{ margin: "6px 0 12px", fontSize: "14px" }}>
+              Aucun joueur fictif : l&apos;application se construit uniquement
+              avec vos vrais noms. Connecte-toi ci-dessus puis clique sur{" "}
+              <strong>+ Ajouter un partenaire / joueur</strong> pour enregistrer
+              la personne avec qui tu joues et former votre équipe officielle !
+            </p>
+            <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+              <Link href="/jouer" className="btn btn-primary btn-sm">
+                <TableCardsIcon size={15} />
+                <span>Lancer une Partie Libre au BAR</span>
+              </Link>
+              <Link href="/classement" className="btn btn-secondary btn-sm">
+                <TrophyIcon size={15} />
+                <span>Classements Individuel &amp; Équipe</span>
+              </Link>
+            </div>
+          </section>
+        </div>
       </div>
     );
   }
@@ -381,6 +417,24 @@ export function EquipeView() {
   return (
     <div className="container-mobile">
       <div className="players-stack">
+        <ClubAccountGateCard
+          title="Mon compte Coinch'Eirb (pseudo + mot de passe)"
+          compact
+        />
+
+        <PartnerDiscoveryAndAddCard
+          tournamentState={state}
+          casualGames={casualGames}
+          directory={playerDirectory}
+          selectedPartnerName={activeTeam.player2Name}
+          myPlayerName={activeTeam.player1Name}
+          onPartnerReady={(info) => {
+            if (info.teamId !== null) {
+              setSelectedTeamId(info.teamId);
+            }
+          }}
+        />
+
         {/* Recherche instantanée par PRÉNOM */}
         <section className="card-ruled" aria-label="Trouver mon équipe par prénom">
           <label htmlFor="equipe-firstname-input" className="field-label">

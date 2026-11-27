@@ -6,6 +6,12 @@ import { useSearchParams } from "next/navigation";
 import type { AnnouncementOutcome, AnnouncementType } from "@/types/database";
 import { normalizeComparisonKey } from "@/lib/security/sanitize";
 import {
+  doesClubAccountPlayAtTable,
+  evaluateTableScorerAccess,
+  normalizeTableCodeInput,
+} from "@/lib/auth/table-code";
+import { useClubAccount } from "@/lib/auth/use-club-account";
+import {
   broadcastLiveAnnouncementFromStore,
   editDealInStore,
   findUnifiedTeam,
@@ -28,6 +34,11 @@ import { useTournamentStore } from "@/lib/tournament/use-tournament-store";
 import { AnnouncementPanel } from "@/components/table/AnnouncementPanel";
 import { ScoreHistoryList } from "@/components/table/ScoreHistoryList";
 import { AbandonModal, RefereeModal } from "@/components/table/ActionModals";
+import { ClashRoyaleSoundboardBar } from "@/components/live/ClashRoyaleSoundboardBar";
+import {
+  playBuiltinSoundPreset,
+  playMatchOutcomeSound,
+} from "@/components/live/sound-engine";
 import type {
   PendingLiveAnnouncement,
   TableDealItem,
@@ -116,6 +127,30 @@ function formatMatchContextBadge(match: UnifiedMatchRecord): string {
 export function MaTableView() {
   const searchParams = useSearchParams();
   const { state, summary, hydrated } = useTournamentStore();
+  const { account: clubAccount } = useClubAccount();
+
+  const [tableClaimState, setTableClaimState] = useState<{
+    loaded: boolean;
+    isAdmin: boolean;
+    cookieMatchId: string | null;
+    cookieHolderId: string | null;
+    cookieLockVersion: number | null;
+    activeLockHolderId: string | null;
+    activeLockHolderLabel: string | null;
+    activeLockVersion: number;
+  }>({
+    loaded: false,
+    isAdmin: false,
+    cookieMatchId: null,
+    cookieHolderId: null,
+    cookieLockVersion: null,
+    activeLockHolderId: null,
+    activeLockHolderLabel: null,
+    activeLockVersion: 1,
+  });
+  const [tableCodeInput, setTableCodeInput] = useState<string>("");
+  const [tableClaimBusy, setTableClaimBusy] = useState<boolean>(false);
+  const [tableClaimError, setTableClaimError] = useState<string | null>(null);
 
   const playableMatches = useMemo(() => {
     return state.matches
@@ -359,6 +394,58 @@ export function MaTableView() {
     activeMatch = playableMatches[0];
   }
 
+  const activeMatchIdForClaim = activeMatch?.id ?? "";
+
+  useEffect(() => {
+    if (activeMatchIdForClaim.length === 0) {
+      return;
+    }
+    let cancelled = false;
+    async function loadTableClaim() {
+      try {
+        const res = await fetch(
+          `/api/auth/table-claim?matchId=${encodeURIComponent(activeMatchIdForClaim)}`,
+          { method: "GET", cache: "no-store" },
+        );
+        if (!res.ok || cancelled) {
+          return;
+        }
+        const data = (await res.json()) as {
+          isAdmin?: boolean;
+          scorerCookie?: {
+            matchId?: string;
+            holderId?: string;
+            lockVersion?: number;
+          } | null;
+          activeLock?: {
+            holderId?: string | null;
+            holderLabel?: string | null;
+            lockVersion?: number;
+          };
+        };
+        if (cancelled) {
+          return;
+        }
+        setTableClaimState({
+          loaded: true,
+          isAdmin: data.isAdmin === true,
+          cookieMatchId: data.scorerCookie?.matchId ?? null,
+          cookieHolderId: data.scorerCookie?.holderId ?? null,
+          cookieLockVersion: data.scorerCookie?.lockVersion ?? null,
+          activeLockHolderId: data.activeLock?.holderId ?? null,
+          activeLockHolderLabel: data.activeLock?.holderLabel ?? null,
+          activeLockVersion: data.activeLock?.lockVersion ?? 1,
+        });
+      } catch {
+        // Ignore erreur reseau
+      }
+    }
+    void loadTableClaim();
+    return () => {
+      cancelled = true;
+    };
+  }, [activeMatchIdForClaim, clubAccount]);
+
   if (activeMatch === null) {
     return (
       <div className="container-mobile">
@@ -379,13 +466,13 @@ export function MaTableView() {
             apparaissent automatiquement ici.
           </p>
           <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-            <Link href="/admin" className="btn btn-primary btn-full">
-              <LockIcon size={16} />
-              <span>Ouvrir le Poste Admin pour générer les poules</span>
+            <Link href="/jouer" className="btn btn-primary btn-full">
+              <UsersIcon size={16} />
+              <span>Lancer une Partie Libre au BAR (/jouer)</span>
             </Link>
             <Link href="/classement" className="btn btn-secondary btn-full">
               <TrophyIcon size={16} />
-              <span>Voir le classement</span>
+              <span>Voir les Classements Individuel &amp; Équipe</span>
             </Link>
           </div>
         </section>
@@ -448,8 +535,94 @@ export function MaTableView() {
     isForfeited ||
     activeMatch.status === "completed" ||
     matchProgress.status === "completed";
+
+  let accountAtThisTable = false;
+  if (clubAccount !== null) {
+    accountAtThisTable = doesClubAccountPlayAtTable({
+      accountPseudo: clubAccount.pseudo,
+      accountFirstName: clubAccount.firstName,
+      tablePlayerNames: [
+        teamAInfo.player1,
+        teamAInfo.player2,
+        teamBInfo.player1,
+        teamBInfo.player2,
+      ],
+    });
+  }
+
+  const scorerAccess = evaluateTableScorerAccess({
+    isAdmin: tableClaimState.isAdmin,
+    accountPlayingAtTable: accountAtThisTable,
+    matchId: activeMatch.id,
+    cookieMatchId: tableClaimState.cookieMatchId,
+    cookieHolderId: tableClaimState.cookieHolderId,
+    cookieLockVersion: tableClaimState.cookieLockVersion,
+    activeLockHolderId: tableClaimState.activeLockHolderId,
+    activeLockVersion: tableClaimState.activeLockVersion,
+  });
+
+  const isLockedByTableScorerGuard =
+    tableClaimState.loaded && !scorerAccess.canEdit;
+
+  async function handleClaimTableSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (activeMatch === null) {
+      return;
+    }
+    const targetMatchId = activeMatch.id;
+    setTableClaimError(null);
+    const cleaned = normalizeTableCodeInput(tableCodeInput);
+    if (cleaned.length < 4) {
+      setTableClaimError("Saisissez les 4 caractères du code Table.");
+      return;
+    }
+    setTableClaimBusy(true);
+    try {
+      const res = await fetch("/api/auth/table-claim", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          matchId: targetMatchId,
+          tableNumber,
+          tableCode: cleaned,
+          holderLabel: `Table ${tableNumber}`,
+        }),
+      });
+      const data = (await res.json().catch(() => null)) as {
+        claimed?: boolean;
+        holderId?: string;
+        holderLabel?: string;
+        lockVersion?: number;
+        error?: string;
+      } | null;
+
+      if (!res.ok) {
+        setTableClaimError(data?.error ?? "Code table refusé.");
+        setTableClaimBusy(false);
+        return;
+      }
+
+      setTableCodeInput("");
+      setTableClaimState((prev) => ({
+        ...prev,
+        loaded: true,
+        cookieMatchId: targetMatchId,
+        cookieHolderId: data?.holderId ?? "local-claimed",
+        cookieLockVersion: data?.lockVersion ?? prev.activeLockVersion,
+        activeLockHolderId: data?.holderId ?? "local-claimed",
+        activeLockHolderLabel: data?.holderLabel ?? `Table ${tableNumber}`,
+      }));
+    } catch {
+      setTableClaimError("Erreur réseau lors de la validation du code.");
+    }
+    setTableClaimBusy(false);
+  }
+
+  const isTableWriteBlocked =
+    isLockedByAdminSwitch || isLockedByTableScorerGuard;
+
   const isInputDisabled =
-    isLockedByAdminSwitch || (isMatchClosed && editingDealId === null);
+    isTableWriteBlocked || (isMatchClosed && editingDealId === null);
 
   const nextDealNumber = deals.length + 1;
 
@@ -670,6 +843,7 @@ export function MaTableView() {
 
     setPendingAnnouncement(nextPending);
     setLastLiveFeedMessage(null);
+    playBuiltinSoundPreset("hog_rider");
 
     broadcastLiveAnnouncementFromStore({
       announcementId: annId,
@@ -741,6 +915,12 @@ export function MaTableView() {
       type: pendingAnnouncement.type,
       outcome,
     });
+
+    if (outcome === "passed") {
+      playMatchOutcomeSound("win");
+    } else {
+      playMatchOutcomeSound("lose");
+    }
 
     if (outcome === "passed") {
       if (pendingAnnouncement.type === "capot") {
@@ -1274,6 +1454,69 @@ export function MaTableView() {
           </div>
         )}
 
+        {/* Protection Anti-Troll : Verrou Téléphone Marqueur ou Compte vérifié */}
+        {!isLockedByAdminSwitch && isLockedByTableScorerGuard && (
+          <section className="card-ruled" aria-label="Verrou anti-troll de la table">
+            <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "6px" }}>
+              <LockIcon size={16} />
+              <strong style={{ fontSize: "13.5px" }}>
+                {scorerAccess.status === "locked_other_phone" &&
+                  "Table verrouillée sur un autre téléphone marqueur"}
+                {scorerAccess.status !== "locked_other_phone" &&
+                  "Mode lecture seule · Débloquer la saisie de cette table"}
+              </strong>
+            </div>
+
+            <p style={{ margin: "0 0 10px", fontSize: "12.5px", color: "var(--ink-secondary)" }}>
+              {scorerAccess.reason}
+            </p>
+
+            {scorerAccess.status === "requires_code" && (
+              <form
+                onSubmit={(e) => {
+                  void handleClaimTableSubmit(e);
+                }}
+                style={{ display: "flex", gap: "8px", flexWrap: "wrap", alignItems: "center" }}
+              >
+                <input
+                  type="text"
+                  className="field-input"
+                  style={{ width: "145px", minHeight: "40px", fontWeight: 800, letterSpacing: "0.12em", textTransform: "uppercase", textAlign: "center" }}
+                  placeholder="CODE 4 CAR."
+                  maxLength={6}
+                  value={tableCodeInput}
+                  onChange={(e) => setTableCodeInput(e.target.value.toUpperCase())}
+                />
+                <button
+                  type="submit"
+                  className="btn btn-sm btn-primary"
+                  disabled={tableClaimBusy}
+                >
+                  <span>Devenir marqueur</span>
+                </button>
+                <Link href="/classement" className="btn btn-sm btn-secondary">
+                  <span>Ou me connecter</span>
+                </Link>
+              </form>
+            )}
+
+            {tableClaimError !== null && (
+              <p style={{ margin: "8px 0 0", fontSize: "12px", fontWeight: 700, color: "var(--status-fail)" }} role="alert">
+                {tableClaimError}
+              </p>
+            )}
+          </section>
+        )}
+
+        {!isLockedByAdminSwitch && tableClaimState.loaded && scorerAccess.canEdit && (
+          <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
+            <span className="badge badge-pass">
+              <CheckIcon size={12} />
+              <span>{scorerAccess.reason}</span>
+            </span>
+          </div>
+        )}
+
         {/* Alerte arbitre active */}
         {refereeAlertMessage !== null && (
           <div className="banner banner-info" role="status">
@@ -1622,7 +1865,7 @@ export function MaTableView() {
                     className="field-input field-input-score"
                     placeholder="420"
                     value={directInputA}
-                    disabled={isLockedByAdminSwitch || isForfeited}
+                    disabled={isTableWriteBlocked || isForfeited}
                     onChange={(event) => setDirectInputA(event.target.value)}
                   />
                 </div>
@@ -1639,7 +1882,7 @@ export function MaTableView() {
                     className="field-input field-input-score"
                     placeholder="310"
                     value={directInputB}
-                    disabled={isLockedByAdminSwitch || isForfeited}
+                    disabled={isTableWriteBlocked || isForfeited}
                     onChange={(event) => setDirectInputB(event.target.value)}
                   />
                 </div>
@@ -1676,7 +1919,7 @@ export function MaTableView() {
               <button
                 type="submit"
                 className="btn btn-primary btn-full"
-                disabled={isLockedByAdminSwitch || isForfeited}
+                disabled={isTableWriteBlocked || isForfeited}
                 style={{ marginTop: "12px" }}
               >
                 <CheckIcon size={18} />
@@ -1694,18 +1937,21 @@ export function MaTableView() {
           onSelectSide={setAnnouncementSide}
           pendingAnnouncement={pendingAnnouncement}
           lastLiveFeedMessage={lastLiveFeedMessage}
-          disabled={isLockedByAdminSwitch || isForfeited}
+          disabled={isTableWriteBlocked || isForfeited}
           onTriggerAnnouncement={handleTriggerAnnouncement}
           onResolveAnnouncement={handleResolveAnnouncement}
           onCancelPending={() => setPendingAnnouncement(null)}
         />
+
+        {/* Soundboard Clash Royale & FAAAAHHH sur la table */}
+        <ClashRoyaleSoundboardBar compact />
 
         {/* Historique des donnes */}
         <ScoreHistoryList
           deals={deals}
           teamA={teamAInfo}
           teamB={teamBInfo}
-          editingEnabled={!isLockedByAdminSwitch && !isForfeited}
+          editingEnabled={!isTableWriteBlocked && !isForfeited}
           editingDealId={editingDealId}
           onStartEditDeal={handleStartEditDeal}
         />
@@ -1725,7 +1971,7 @@ export function MaTableView() {
             <button
               type="button"
               className="btn btn-ghost-danger btn-full"
-              disabled={isForfeited}
+              disabled={isTableWriteBlocked || isForfeited}
               onClick={() => setAbandonModalOpen(true)}
             >
               <FlagIcon size={17} />

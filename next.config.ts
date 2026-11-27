@@ -19,6 +19,7 @@ function buildContentSecurityPolicy(isProd: boolean): string {
     "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
     "font-src 'self' https://fonts.gstatic.com data:",
     "img-src 'self' data: blob: https://*.supabase.co",
+    "media-src 'self' data: blob: https://*.supabase.co",
     connectSrc,
     "frame-ancestors 'none'",
     "base-uri 'self'",
@@ -56,6 +57,18 @@ function buildSecurityHeaders(): Array<{ key: string; value: string }> {
     {
       key: "Permissions-Policy",
       value: "camera=(), microphone=(), geolocation=()",
+    },
+    {
+      key: "Cross-Origin-Opener-Policy",
+      value: "same-origin",
+    },
+    {
+      key: "Cross-Origin-Resource-Policy",
+      value: "same-origin",
+    },
+    {
+      key: "X-DNS-Prefetch-Control",
+      value: "off",
     },
   ];
 

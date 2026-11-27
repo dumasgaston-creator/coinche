@@ -8,47 +8,172 @@ export type LiveSoundSlot =
   | "first_deal";
 
 export type BuiltinSoundPresetId =
-  | "vine_boom"
+  | "clash_king_laugh"
+  | "clash_king_hihihiha"
+  | "clash_king_cry"
+  | "clash_king_grrr"
   | "faaaah"
+  | "auughhh"
+  | "emotional_damage"
+  | "hog_rider"
+  | "vine_boom"
   | "mlg_airhorn"
   | "sad_trombone"
+  | "bruh_drop"
+  | "siren_alert"
+  | "club_premiere_donne"
   | "victory_fanfare"
-  | "bruh_drop";
+  | "oof_drop"
+  | "sigma_bass"
+  | "cartoon_boing";
 
 export interface BuiltinSoundPresetMeta {
   id: BuiltinSoundPresetId;
   label: string;
+  shortLabel: string;
+  category: "win" | "lose" | "hype";
+  audioUrl: string | null;
 }
 
+/**
+ * Banque de sons reelle Coinch'Eirb :
+ * - Vrais fichiers audio MP3/M4A dans `/assets/sounds/` (convertis depuis vraies videos & voix Clash Royale)
+ * - Roi Clash Royale qui rigole (HEHEHEHA / HIHIHIHA) quand on gagne
+ * - Vrai cri FAAAAHHH / Roi qui pleure / Emotional Damage quand on perd ou chute.
+ */
 export const BUILTIN_SOUND_PRESETS: readonly BuiltinSoundPresetMeta[] = [
-  { id: "vine_boom", label: "Vine Boom (Basse)" },
-  { id: "faaaah", label: "FAAAAHHH (Drop viral)" },
-  { id: "mlg_airhorn", label: "MLG Airhorn (x3)" },
-  { id: "sad_trombone", label: "Trombone Capri-Seum" },
-  { id: "bruh_drop", label: "Bruh / Impact" },
-  { id: "victory_fanfare", label: "Fanfare Champions" },
+  {
+    id: "clash_king_laugh",
+    label: "Roi Clash Royale qui rigole (HEHEHEHA !)",
+    shortLabel: "Roi HEHEHEHA",
+    category: "win",
+    audioUrl: "/assets/sounds/clash-king-laugh.mp3",
+  },
+  {
+    id: "clash_king_hihihiha",
+    label: "Roi Clash Royale Victoire (HIHIHIHA !)",
+    shortLabel: "Roi HIHIHIHA",
+    category: "win",
+    audioUrl: "/assets/sounds/clash-king-thumbsup.mp3",
+  },
+  {
+    id: "faaaah",
+    label: "Vrai FAAAAHHH (Vidéo quand on perd / chute)",
+    shortLabel: "FAAAAHHH !",
+    category: "lose",
+    audioUrl: "/assets/sounds/faaaah-lose.mp3",
+  },
+  {
+    id: "clash_king_cry",
+    label: "Roi Clash Royale qui pleure (UH HUH HUH)",
+    shortLabel: "Roi qui pleure",
+    category: "lose",
+    audioUrl: "/assets/sounds/clash-king-cry.mp3",
+  },
+  {
+    id: "clash_king_grrr",
+    label: "Roi Clash Royale vénère (GRRRR !)",
+    shortLabel: "Roi GRRRR",
+    category: "lose",
+    audioUrl: "/assets/sounds/clash-king-grrr.mp3",
+  },
+  {
+    id: "emotional_damage",
+    label: "EMOTIONAL DAMAGE (Chute / Contre)",
+    shortLabel: "Emotional Damage",
+    category: "lose",
+    audioUrl: "/assets/sounds/emotional-damage.mp3",
+  },
+  {
+    id: "auughhh",
+    label: "AUUGHHH (Désespoir total)",
+    shortLabel: "AUUGHHH",
+    category: "lose",
+    audioUrl: "/assets/sounds/auughhh-lose.mp3",
+  },
+  {
+    id: "hog_rider",
+    label: "Clash Royale HOG RIDEEEER ! (Annonce)",
+    shortLabel: "HOG RIDER !",
+    category: "hype",
+    audioUrl: "/assets/sounds/hog-rider.mp3",
+  },
+  {
+    id: "vine_boom",
+    label: "Vrai Vine Boom (Impact Coinche)",
+    shortLabel: "Vine Boom",
+    category: "hype",
+    audioUrl: "/assets/sounds/vine-boom.mp3",
+  },
+  {
+    id: "siren_alert",
+    label: "Sirène Alerte Générale / Surcoinche",
+    shortLabel: "Sirène Coinche",
+    category: "hype",
+    audioUrl: "/assets/sounds/siren-coinche.mp3",
+  },
+  {
+    id: "mlg_airhorn",
+    label: "MLG Airhorn (Capot / Finale)",
+    shortLabel: "MLG Airhorn",
+    category: "win",
+    audioUrl: "/assets/sounds/mlg-airhorn.mp3",
+  },
+  {
+    id: "sad_trombone",
+    label: "Trombone Capri-Seum (Élimination)",
+    shortLabel: "Trombone Seum",
+    category: "lose",
+    audioUrl: "/assets/sounds/sad-trombone.mp3",
+  },
+  {
+    id: "bruh_drop",
+    label: "BRUH (Parlante 160 pts)",
+    shortLabel: "BRUH",
+    category: "lose",
+    audioUrl: "/assets/sounds/bruh.mp3",
+  },
+  {
+    id: "club_premiere_donne",
+    label: "Audio Vidéo Première Donne (BAR ENSEIRB)",
+    shortLabel: "1re Donne BAR",
+    category: "hype",
+    audioUrl: "/assets/sounds/club-premiere-donne.m4a",
+  },
 ];
 
 export interface CustomSoundEntry {
+  id?: string;
+  fileName: string;
+  dataUrl: string;
+}
+
+export interface CustomSoundClip {
+  id: string;
   fileName: string;
   dataUrl: string;
 }
 
 export type CustomSoundsMap = Partial<Record<LiveSoundSlot, CustomSoundEntry>>;
+export type CustomSoundBankMap = Partial<
+  Record<LiveSoundSlot, CustomSoundClip[]>
+>;
 export type SoundPresetPrefsMap = Partial<
   Record<LiveSoundSlot, BuiltinSoundPresetId>
 >;
 
 const SOUND_ENABLED_KEY = "coincheirb-live-sound-enabled";
 const CUSTOM_SOUNDS_KEY = "coincheirb-live-custom-sounds-v1";
-const PRESET_PREFS_KEY = "coincheirb-live-sound-presets-v1";
+const PRESET_PREFS_KEY = "coincheirb-live-sound-presets-v2";
+
+const lastClipIdBySlot: Partial<Record<LiveSoundSlot, string>> = {};
 
 const DEFAULT_SLOT_PRESETS: Record<LiveSoundSlot, BuiltinSoundPresetId> = {
-  announce: "vine_boom",
-  passed: "mlg_airhorn",
+  announce: "hog_rider",
+  passed: "clash_king_laugh",
   failed: "faaaah",
-  champion: "victory_fanfare",
-  first_deal: "mlg_airhorn",
+  champion: "clash_king_hihihiha",
+  first_deal: "club_premiere_donne",
 };
 
 let sharedAudioCtx: AudioContext | null = null;
@@ -73,14 +198,22 @@ function getAudioContext(): AudioContext | null {
   return sharedAudioCtx;
 }
 
+/**
+ * Son active par defaut (`true`) pour que les voix Clash Royale et le cri FAAAAHHH
+ * fonctionnent immediatement en partie et sur /live (desactivable en 1 clic).
+ */
 export function readSoundEnabledPreference(): boolean {
   if (typeof window === "undefined") {
-    return false;
+    return true;
   }
   try {
-    return window.localStorage.getItem(SOUND_ENABLED_KEY) === "true";
+    const stored = window.localStorage.getItem(SOUND_ENABLED_KEY);
+    if (stored === null) {
+      return true;
+    }
+    return stored === "true";
   } catch {
-    return false;
+    return true;
   }
 }
 
@@ -98,7 +231,58 @@ export function writeSoundEnabledPreference(enabled: boolean): void {
   }
 }
 
-export function readCustomSounds(): CustomSoundsMap {
+function normalizeSoundClips(rawValue: unknown): CustomSoundClip[] {
+  if (Array.isArray(rawValue)) {
+    const out: CustomSoundClip[] = [];
+    for (let i = 0; i < rawValue.length; i += 1) {
+      const item = rawValue[i];
+      if (typeof item === "object" && item !== null) {
+        const record = item as Partial<CustomSoundClip>;
+        if (
+          typeof record.fileName === "string" &&
+          typeof record.dataUrl === "string" &&
+          record.dataUrl.length > 0
+        ) {
+          let clipId = `clip-${i}-${record.fileName}`;
+          if (typeof record.id === "string" && record.id.length > 0) {
+            clipId = record.id;
+          }
+          out.push({
+            id: clipId,
+            fileName: record.fileName,
+            dataUrl: record.dataUrl,
+          });
+        }
+      }
+    }
+    return out;
+  }
+
+  if (typeof rawValue === "object" && rawValue !== null) {
+    const single = rawValue as Partial<CustomSoundEntry>;
+    if (
+      typeof single.fileName === "string" &&
+      typeof single.dataUrl === "string" &&
+      single.dataUrl.length > 0
+    ) {
+      let clipId = `legacy-${single.fileName}`;
+      if (typeof single.id === "string" && single.id.length > 0) {
+        clipId = single.id;
+      }
+      return [
+        {
+          id: clipId,
+          fileName: single.fileName,
+          dataUrl: single.dataUrl,
+        },
+      ];
+    }
+  }
+
+  return [];
+}
+
+export function readCustomSoundBank(): CustomSoundBankMap {
   if (typeof window === "undefined") {
     return {};
   }
@@ -108,13 +292,105 @@ export function readCustomSounds(): CustomSoundsMap {
       return {};
     }
     const parsed: unknown = JSON.parse(raw);
-    if (typeof parsed === "object" && parsed !== null) {
-      return parsed as CustomSoundsMap;
+    if (typeof parsed !== "object" || parsed === null) {
+      return {};
     }
+    const record = parsed as Record<string, unknown>;
+    const bank: CustomSoundBankMap = {};
+    const slots: LiveSoundSlot[] = [
+      "announce",
+      "passed",
+      "failed",
+      "champion",
+      "first_deal",
+    ];
+    for (const slot of slots) {
+      const clips = normalizeSoundClips(record[slot]);
+      if (clips.length > 0) {
+        bank[slot] = clips;
+      }
+    }
+    return bank;
   } catch {
-    // Ignore
+    return {};
   }
-  return {};
+}
+
+export function readCustomSounds(): CustomSoundsMap {
+  const bank = readCustomSoundBank();
+  const legacy: CustomSoundsMap = {};
+  const slots: LiveSoundSlot[] = [
+    "announce",
+    "passed",
+    "failed",
+    "champion",
+    "first_deal",
+  ];
+  for (const slot of slots) {
+    const list = bank[slot];
+    if (list !== undefined && list.length > 0) {
+      legacy[slot] = list[0];
+    }
+  }
+  return legacy;
+}
+
+function writeCustomSoundBank(bank: CustomSoundBankMap): CustomSoundBankMap {
+  if (typeof window !== "undefined") {
+    try {
+      window.localStorage.setItem(CUSTOM_SOUNDS_KEY, JSON.stringify(bank));
+    } catch {
+      throw new Error(
+        "Banque audio trop lourde pour le stockage local (visez des extraits courts < 1 Mo).",
+      );
+    }
+  }
+  return bank;
+}
+
+export function addCustomSoundClips(
+  slot: LiveSoundSlot,
+  entries: CustomSoundEntry[],
+): CustomSoundBankMap {
+  const current = readCustomSoundBank();
+  const existing = current[slot] ?? [];
+  const appended: CustomSoundClip[] = [...existing];
+  for (let i = 0; i < entries.length; i += 1) {
+    const entry = entries[i];
+    if (entry === undefined) {
+      continue;
+    }
+    let clipId = `clip-${Date.now()}-${i}-${Math.floor(Math.random() * 1000)}`;
+    if (typeof entry.id === "string" && entry.id.length > 0) {
+      clipId = entry.id;
+    }
+    appended.push({
+      id: clipId,
+      fileName: entry.fileName,
+      dataUrl: entry.dataUrl,
+    });
+  }
+  const next: CustomSoundBankMap = {
+    ...current,
+    [slot]: appended,
+  };
+  return writeCustomSoundBank(next);
+}
+
+export function removeCustomSoundClip(
+  slot: LiveSoundSlot,
+  clipId: string,
+): CustomSoundBankMap {
+  const current = readCustomSoundBank();
+  const existing = current[slot] ?? [];
+  const remaining = existing.filter((clip) => clip.id !== clipId);
+  const next: CustomSoundBankMap = { ...current };
+  if (remaining.length > 0) {
+    next[slot] = remaining;
+  } else {
+    delete next[slot];
+  }
+  return writeCustomSoundBank(next);
 }
 
 export function readSoundPresetPrefs(): SoundPresetPrefsMap {
@@ -170,35 +446,16 @@ export function saveCustomSound(
   slot: LiveSoundSlot,
   entry: CustomSoundEntry,
 ): CustomSoundsMap {
-  const current = readCustomSounds();
-  const next: CustomSoundsMap = {
-    ...current,
-    [slot]: entry,
-  };
-  if (typeof window !== "undefined") {
-    try {
-      window.localStorage.setItem(CUSTOM_SOUNDS_KEY, JSON.stringify(next));
-    } catch {
-      throw new Error(
-        "Fichier audio trop lourd pour le stockage local (visez un extrait < 1 Mo).",
-      );
-    }
-  }
-  return next;
+  addCustomSoundClips(slot, [entry]);
+  return readCustomSounds();
 }
 
 export function clearCustomSound(slot: LiveSoundSlot): CustomSoundsMap {
-  const current = readCustomSounds();
-  const next: CustomSoundsMap = { ...current };
+  const current = readCustomSoundBank();
+  const next: CustomSoundBankMap = { ...current };
   delete next[slot];
-  if (typeof window !== "undefined") {
-    try {
-      window.localStorage.setItem(CUSTOM_SOUNDS_KEY, JSON.stringify(next));
-    } catch {
-      // Ignore
-    }
-  }
-  return next;
+  writeCustomSoundBank(next);
+  return readCustomSounds();
 }
 
 function scheduleTone(
@@ -231,108 +488,98 @@ function scheduleTone(
   osc.stop(now + durationSec + 0.04);
 }
 
-/**
- * Joue un effet sonore Brainrot / Meme synthetise gratuitement via Web Audio API.
- */
-export function playBuiltinSoundPreset(presetId: BuiltinSoundPresetId): void {
+function playFallbackWebAudioTone(presetId: BuiltinSoundPresetId): void {
   const ctx = getAudioContext();
   if (ctx === null) {
     return;
   }
-
-  if (presetId === "vine_boom") {
-    // Sub-bass Vine Boom percutant (130 Hz -> 34 Hz + harmonique grave)
-    scheduleTone(ctx, 135, 0.0, 0.85, "sine", 0.42, 32);
-    scheduleTone(ctx, 90, 0.0, 0.55, "triangle", 0.28, 36);
-    scheduleTone(ctx, 210, 0.0, 0.12, "sawtooth", 0.14, 52);
+  if (
+    presetId === "faaaah" ||
+    presetId === "auughhh" ||
+    presetId === "clash_king_cry" ||
+    presetId === "clash_king_grrr" ||
+    presetId === "emotional_damage" ||
+    presetId === "sad_trombone"
+  ) {
+    scheduleTone(ctx, 320, 0.0, 0.9, "sawtooth", 0.25, 130);
     return;
   }
-
-  if (presetId === "faaaah") {
-    // Cri / drop viral resonant type "FAAAAHHH" (formant vocal filtre + descente)
-    const now = ctx.currentTime;
-    const osc1 = ctx.createOscillator();
-    const osc2 = ctx.createOscillator();
-    const filter = ctx.createBiquadFilter();
-    const gain = ctx.createGain();
-
-    osc1.type = "sawtooth";
-    osc2.type = "sawtooth";
-    osc1.frequency.setValueAtTime(275, now);
-    osc1.frequency.exponentialRampToValueAtTime(340, now + 0.14);
-    osc1.frequency.exponentialRampToValueAtTime(145, now + 1.15);
-
-    osc2.frequency.setValueAtTime(278, now);
-    osc2.frequency.exponentialRampToValueAtTime(344, now + 0.14);
-    osc2.frequency.exponentialRampToValueAtTime(142, now + 1.15);
-
-    filter.type = "bandpass";
-    filter.Q.setValueAtTime(3.2, now);
-    filter.frequency.setValueAtTime(950, now);
-    filter.frequency.exponentialRampToValueAtTime(1450, now + 0.2);
-    filter.frequency.exponentialRampToValueAtTime(520, now + 1.15);
-
-    gain.gain.setValueAtTime(0.001, now);
-    gain.gain.linearRampToValueAtTime(0.32, now + 0.04);
-    gain.gain.setValueAtTime(0.28, now + 0.55);
-    gain.gain.exponentialRampToValueAtTime(0.001, now + 1.2);
-
-    osc1.connect(filter);
-    osc2.connect(filter);
-    filter.connect(gain);
-    gain.connect(ctx.destination);
-
-    osc1.start(now);
-    osc2.start(now);
-    osc1.stop(now + 1.25);
-    osc2.stop(now + 1.25);
-    return;
-  }
-
-  if (presetId === "mlg_airhorn") {
-    // Triple MLG Airhorn (BWA-BWA-BWAAAAH)
-    const hits: ReadonlyArray<[number, number]> = [
-      [0.0, 0.16],
-      [0.2, 0.16],
-      [0.4, 0.65],
-    ];
-    for (const [offset, dur] of hits) {
-      scheduleTone(ctx, 415.3, offset, dur, "sawtooth", 0.15);
-      scheduleTone(ctx, 523.25, offset, dur, "sawtooth", 0.13);
-      scheduleTone(ctx, 622.25, offset, dur, "square", 0.09);
-    }
-    return;
-  }
-
-  if (presetId === "bruh_drop") {
-    // Impact court "Bruh" descendant
-    scheduleTone(ctx, 210, 0.0, 0.36, "sawtooth", 0.22, 82);
-    scheduleTone(ctx, 110, 0.0, 0.42, "triangle", 0.25, 58);
-    return;
-  }
-
-  if (presetId === "sad_trombone") {
-    // Trombone triste façon "wah-wah-wah-waaaah"
-    scheduleTone(ctx, 466.16, 0.0, 0.24, "sawtooth", 0.14);
-    scheduleTone(ctx, 440.0, 0.26, 0.24, "sawtooth", 0.14);
-    scheduleTone(ctx, 415.3, 0.52, 0.24, "sawtooth", 0.14);
-    scheduleTone(ctx, 392.0, 0.78, 0.65, "sawtooth", 0.16, 330.0);
-    return;
-  }
-
-  // Fanfare Champions
   scheduleTone(ctx, 523.25, 0.0, 0.16, "triangle", 0.2);
   scheduleTone(ctx, 659.25, 0.14, 0.16, "triangle", 0.2);
-  scheduleTone(ctx, 783.99, 0.28, 0.16, "triangle", 0.2);
-  scheduleTone(ctx, 1046.5, 0.44, 0.75, "triangle", 0.24);
-  scheduleTone(ctx, 523.25, 0.44, 0.75, "sine", 0.16);
-  scheduleTone(ctx, 783.99, 0.44, 0.75, "sine", 0.16);
+  scheduleTone(ctx, 783.99, 0.28, 0.45, "triangle", 0.24);
 }
 
 /**
- * Joue le son associe a un evenement /live :
+ * Joue un vrai fichier audio MP3/M4A de la banque (`/assets/sounds/...`)
+ * avec repli Web Audio API si l'environnement ne supporte pas `HTMLAudioElement`.
+ */
+export function playBuiltinSoundPreset(presetId: BuiltinSoundPresetId): void {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  let foundMeta: BuiltinSoundPresetMeta | null = null;
+  for (const item of BUILTIN_SOUND_PRESETS) {
+    if (item.id === presetId) {
+      foundMeta = item;
+      break;
+    }
+  }
+
+  const audioUrl = foundMeta?.audioUrl ?? "/assets/sounds/clash-king-laugh.mp3";
+  if (typeof Audio !== "undefined" && audioUrl !== null) {
+    try {
+      const audio = new Audio(audioUrl);
+      audio.volume = 0.9;
+      const playPromise = audio.play();
+      if (playPromise !== undefined) {
+        playPromise.catch(() => {
+          playFallbackWebAudioTone(presetId);
+        });
+      }
+      return;
+    } catch {
+      playFallbackWebAudioTone(presetId);
+      return;
+    }
+  }
+
+  playFallbackWebAudioTone(presetId);
+}
+
+/**
+ * Declenche instantanement l'effet sonore adapte lors d'une victoire (Roi Clash Royale qui rigole)
+ * ou d'une defaite / chute (vrai cri FAAAAHHH !).
+ */
+export function playMatchOutcomeSound(
+  outcome: "win" | "lose" | "cry" | "grrr" | "hog_rider",
+): void {
+  if (!readSoundEnabledPreference()) {
+    return;
+  }
+  if (outcome === "win") {
+    playBuiltinSoundPreset("clash_king_laugh");
+    return;
+  }
+  if (outcome === "lose") {
+    playBuiltinSoundPreset("faaaah");
+    return;
+  }
+  if (outcome === "cry") {
+    playBuiltinSoundPreset("clash_king_cry");
+    return;
+  }
+  if (outcome === "grrr") {
+    playBuiltinSoundPreset("clash_king_grrr");
+    return;
+  }
+  playBuiltinSoundPreset("hog_rider");
+}
+
+/**
+ * Joue le son associe a un evenement /live ou table :
  * 1) Utilise d'abord le fichier audio perso uploade par l'admin si present
- * 2) Sinon joue le preset Brainrot / Meme choisi (Web Audio API gratuit).
+ * 2) Sinon joue le vrai fichier audio MP3/M4A du preset choisi (Clash Royale / FAAAAHHH / Video BAR).
  */
 export function playLiveSound(
   slot: LiveSoundSlot,
@@ -342,16 +589,32 @@ export function playLiveSound(
     return;
   }
 
-  const customSounds = readCustomSounds();
-  const custom = customSounds[slot];
-  if (custom !== undefined && custom.dataUrl.length > 0) {
-    try {
-      const audio = new Audio(custom.dataUrl);
-      audio.volume = 0.85;
-      void audio.play();
-      return;
-    } catch {
-      // Repli vers Web Audio
+  const bank = readCustomSoundBank();
+  const clips = bank[slot];
+  if (clips !== undefined && clips.length > 0) {
+    let chosen = clips[0];
+    if (clips.length > 1) {
+      const previousId = lastClipIdBySlot[slot];
+      const eligible = clips.filter((c) => c.id !== previousId);
+      let pool = clips;
+      if (eligible.length > 0) {
+        pool = eligible;
+      }
+      const picked = pool[Math.floor(Math.random() * pool.length)];
+      if (picked !== undefined) {
+        chosen = picked;
+      }
+    }
+    if (chosen !== undefined && chosen.dataUrl.length > 0) {
+      lastClipIdBySlot[slot] = chosen.id;
+      try {
+        const audio = new Audio(chosen.dataUrl);
+        audio.volume = 0.9;
+        void audio.play();
+        return;
+      } catch {
+        // Repli vers la banque MP3 integree
+      }
     }
   }
 

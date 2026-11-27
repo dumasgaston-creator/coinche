@@ -200,6 +200,7 @@ export function normalizeAnnouncementEvent(
   const rawSpecial = record.specialKind;
   if (
     rawSpecial === "elimination" ||
+    rawSpecial === "almost_there" ||
     rawSpecial === "champion" ||
     rawSpecial === "first_deal"
   ) {

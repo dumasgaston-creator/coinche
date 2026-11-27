@@ -2,9 +2,15 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
+import { ClubAccountGateCard } from "@/components/auth/ClubAccountGateCard";
+import { ShareWebsiteBanner } from "@/components/layout/ShareWebsiteBanner";
+import { ClashRoyaleSoundboardBar } from "@/components/live/ClashRoyaleSoundboardBar";
+import { PartnerDiscoveryAndAddCard } from "@/components/players/PartnerDiscoveryAndAddCard";
+import { useClubAccount } from "@/lib/auth/use-club-account";
+import { normalizeComparisonKey } from "@/lib/security/sanitize";
+import { downloadInstagramStoryPng } from "@/lib/classement/story-export";
 import {
   buildClassementDataset,
-  type AnnualPlayerStanding,
   type ClassementFullDataset,
   type EveningStatsSummary,
   type KnockoutMatchView,
@@ -17,6 +23,13 @@ import {
   type CsvExportScope,
   type ExportResultFeedback,
 } from "@/lib/export/exporters";
+import {
+  computeCombinedAnnualLeaderboard,
+  computeEnseirbTeamLeaderboard,
+  type PlayerAnnualStandingLive,
+  type TeamAnnualStandingLive,
+} from "@/lib/casual/casual-store";
+import { useCasualGamesStore } from "@/lib/casual/use-casual-store";
 import {
   findUnifiedTeam,
   formatOptionalTeamNickname,
@@ -37,7 +50,12 @@ import {
   UsersIcon,
 } from "@/components/icons/Icons";
 
-type ClassementTabKey = "pools" | "knockout" | "annual" | "stats";
+type ClassementTabKey =
+  | "teams_enseirb"
+  | "annual"
+  | "pools"
+  | "knockout"
+  | "stats";
 
 function formatSignedDiff(diff: number): string {
   if (diff > 0) {
@@ -423,19 +441,45 @@ function buildLiveClassementDatasetNoTernary(
 export function ClassementView() {
   const staticFallback = useMemo(() => buildClassementDataset(), []);
   const { state, summary } = useTournamentStore();
+  const { games: casualGames, directory: playerDirectory } =
+    useCasualGamesStore();
+  const { verifiedPseudos } = useClubAccount();
+  const [onlyVerifiedAnnual, setOnlyVerifiedAnnual] = useState<boolean>(false);
+  const [teamSearch, setTeamSearch] = useState<string>("");
+
+  const verifiedKeySet = useMemo(() => {
+    const s = new Set<string>();
+    for (const label of verifiedPseudos) {
+      const key = normalizeComparisonKey(label);
+      if (key.length >= 2) {
+        s.add(key);
+      }
+    }
+    return s;
+  }, [verifiedPseudos]);
+
+  const liveAnnualLeaderboard = useMemo(
+    () =>
+      computeCombinedAnnualLeaderboard(casualGames, state, playerDirectory),
+    [casualGames, state, playerDirectory],
+  );
+
+  const liveTeamLeaderboard = useMemo(
+    () => computeEnseirbTeamLeaderboard(casualGames, state, playerDirectory),
+    [casualGames, state, playerDirectory],
+  );
 
   const dataset = useMemo(
     () => buildLiveClassementDatasetNoTernary(state, summary, staticFallback),
     [state, summary, staticFallback],
   );
 
-  const [activeTab, setActiveTab] = useState<ClassementTabKey>("pools");
+  const [activeTab, setActiveTab] =
+    useState<ClassementTabKey>("teams_enseirb");
   const [selectedPoolNumber, setSelectedPoolNumber] = useState<number>(0);
   const [selectedKnockoutPhase, setSelectedKnockoutPhase] =
     useState<KnockoutMatchView["phase"]>("round_of_16");
   const [annualSearch, setAnnualSearch] = useState<string>("");
-  const [annualSchoolYear, setAnnualSchoolYear] = useState<string>("2026-2027");
-  const [annualPromoFilter, setAnnualPromoFilter] = useState<string>("ALL");
 
   const [csvScope, setCsvScope] = useState<CsvExportScope>("all");
   const [isExporting, setIsExporting] = useState<boolean>(false);
@@ -457,35 +501,33 @@ export function ClassementView() {
     );
   }, [dataset.knockoutMatches, selectedKnockoutPhase]);
 
-  const filteredAnnualPlayers = useMemo(() => {
-    const query = annualSearch.trim().toLowerCase();
-    return dataset.annualPlayers.filter((player: AnnualPlayerStanding) => {
-      if (
-        annualSchoolYear !== "ALL" &&
-        player.schoolYear !== annualSchoolYear
-      ) {
-        return false;
+  const filteredLiveAnnual = useMemo(() => {
+    const q = annualSearch.trim().toLowerCase();
+    return liveAnnualLeaderboard.filter((p: PlayerAnnualStandingLive) => {
+      if (q.length === 0) {
+        return true;
       }
-      if (
-        annualPromoFilter !== "ALL" &&
-        player.promotionYear !== annualPromoFilter
-      ) {
-        return false;
-      }
-      if (query.length > 0) {
-        const hay = `${player.displayName} ${player.department} ${player.promotionYear}`.toLowerCase();
-        if (!hay.includes(query)) {
-          return false;
-        }
-      }
-      return true;
+      return (
+        p.displayName.toLowerCase().includes(q) ||
+        p.department.toLowerCase().includes(q) ||
+        p.promoYear.toLowerCase().includes(q)
+      );
     });
-  }, [
-    dataset.annualPlayers,
-    annualSearch,
-    annualSchoolYear,
-    annualPromoFilter,
-  ]);
+  }, [liveAnnualLeaderboard, annualSearch]);
+
+  const filteredLiveTeams = useMemo(() => {
+    const q = teamSearch.trim().toLowerCase();
+    return liveTeamLeaderboard.filter((t: TeamAnnualStandingLive) => {
+      if (q.length === 0) {
+        return true;
+      }
+      return (
+        t.pairLabel.toLowerCase().includes(q) ||
+        (t.teamNickname ?? "").toLowerCase().includes(q) ||
+        t.promotionLabel.toLowerCase().includes(q)
+      );
+    });
+  }, [liveTeamLeaderboard, teamSearch]);
 
   function handleExportCsv() {
     setIsExporting(true);
@@ -517,12 +559,90 @@ export function ClassementView() {
     }
   }
 
+  function handleExportEnseirbLeaderboardsCsv() {
+    const lines: string[] = [
+      "=== CLASSEMENT PAR EQUIPE ENSEIRB (QUELLES EQUIPES GAGNENT LE PLUS) ===",
+      "Rang;Binome;Surnom;Filiere/Promo;Victoires;Defaites;Taux Victoire (%);Points Equipe;Goal-Average Net (+/-);Points Marques;Points Encaisses;Titres Tournoi;Capots;Generales;Coinches;Meilleure Serie",
+    ];
+    for (const t of liveTeamLeaderboard) {
+      lines.push(
+        [
+          t.rank,
+          t.pairLabel,
+          t.teamNickname ?? "",
+          t.promotionLabel,
+          t.matchesWon,
+          t.matchesLost,
+          `${t.winRatePercent}%`,
+          t.teamPoints,
+          t.netBalance,
+          t.pointsScored,
+          t.pointsConceded,
+          t.tournamentsFinalWon,
+          t.capotsCount,
+          t.generalesCount,
+          t.coinchesCount,
+          t.bestWinStreak,
+        ].join(";"),
+      );
+    }
+    lines.push("");
+    lines.push("=== CLASSEMENT INDIVIDUEL ENSEIRB ===");
+    lines.push(
+      "Rang;Joueur;Promo;Filiere;Style;Ajoute Par;Victoires;Defaites;Taux Victoire (%);Points Annuels;Goal-Average Net (+/-);Matchs Tournoi;Matchs BAR;Meilleur Partenaire",
+    );
+    for (const p of liveAnnualLeaderboard) {
+      lines.push(
+        [
+          p.rank,
+          p.displayName,
+          p.promoYear,
+          p.department,
+          p.playStyle,
+          p.addedByPseudo ?? "Compte/Direct",
+          p.gamesWon,
+          p.gamesLost,
+          `${p.winRatePercent}%`,
+          p.annualPoints,
+          p.netBalance,
+          p.tournamentGames,
+          p.casualGames,
+          p.bestPartner?.name ?? "",
+        ].join(";"),
+      );
+    }
+
+    if (typeof window !== "undefined") {
+      const csvContent = `\uFEFF${lines.join("\n")}`;
+      const blob = new Blob([csvContent], {
+        type: "text/csv;charset=utf-8;",
+      });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "classements-equipes-et-individuel-enseirb.csv";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      setExportFeedback({
+        ok: true,
+        format: "CSV",
+        filename: "classements-equipes-et-individuel-enseirb.csv",
+        message: `Classements Équipes (${liveTeamLeaderboard.length}) & Individuel (${liveAnnualLeaderboard.length}) exportés.`,
+      });
+    }
+  }
+
+  let tabTeamsEnseirbActive = "false";
   let tabPoolsActive = "false";
   let tabKnockoutActive = "false";
   let tabAnnualActive = "false";
   let tabStatsActive = "false";
 
-  if (activeTab === "pools") {
+  if (activeTab === "teams_enseirb") {
+    tabTeamsEnseirbActive = "true";
+  } else if (activeTab === "pools") {
     tabPoolsActive = "true";
   } else if (activeTab === "knockout") {
     tabKnockoutActive = "true";
@@ -660,7 +780,46 @@ export function ClassementView() {
               disabled={isExporting}
               onClick={handleExportPng}
             >
-              Télécharger Planche PNG (2x)
+              Planche PNG (2x)
+            </button>
+
+            <button
+              type="button"
+              className="btn btn-secondary btn-sm"
+              style={{ minHeight: "40px" }}
+              disabled={isExporting}
+              onClick={() => {
+                setIsExporting(true);
+                setExportFeedback(null);
+                void downloadInstagramStoryPng({
+                  tournamentTitle: dataset.tournamentTitle,
+                  winnerNames: dataset.eveningStats.podium.winner.teamName,
+                  winnerPhotoUrl:
+                    state.tournament.winnerPhotoUrl ??
+                    "/assets/vainqueurs/vainqueur-01.jpg",
+                  winnerScoreLabel:
+                    dataset.eveningStats.podium.winner.finalScore,
+                  finalistNames: dataset.eveningStats.podium.finalist.teamName,
+                  totalDeals: dataset.eveningStats.totalDealsPlayed,
+                  capotsPassed: dataset.eveningStats.capotsPassed,
+                  generalesPassed: dataset.eveningStats.generalesPassed,
+                  coinchesPassed: dataset.eveningStats.coinchesPassed,
+                  topPoolTeamName: dataset.eveningStats.highestPoolTeamName,
+                  topPoolTeamPoints:
+                    dataset.eveningStats.highestPoolTeamPoints,
+                })
+                  .then((res) => {
+                    setExportFeedback({
+                      ok: true,
+                      format: "PNG",
+                      filename: res.fileName,
+                      message: `Story Instagram 1080×1920 prête (${res.fileName}).`,
+                    });
+                  })
+                  .finally(() => setIsExporting(false));
+              }}
+            >
+              Story Insta (1080×1920)
             </button>
 
             <button
@@ -670,7 +829,7 @@ export function ClassementView() {
               disabled={isExporting}
               onClick={handleExportPdf}
             >
-              Télécharger Rapport PDF (A4)
+              Rapport PDF (A4)
             </button>
           </div>
 
@@ -697,6 +856,24 @@ export function ClassementView() {
         <button
           type="button"
           className="classement-tab-btn"
+          data-active={tabTeamsEnseirbActive}
+          onClick={() => setActiveTab("teams_enseirb")}
+        >
+          <TrophyIcon size={16} />
+          <span>Équipes ENSEIRB</span>
+        </button>
+        <button
+          type="button"
+          className="classement-tab-btn"
+          data-active={tabAnnualActive}
+          onClick={() => setActiveTab("annual")}
+        >
+          <UsersIcon size={16} />
+          <span>Individuel ENSEIRB</span>
+        </button>
+        <button
+          type="button"
+          className="classement-tab-btn"
           data-active={tabPoolsActive}
           onClick={() => setActiveTab("pools")}
         >
@@ -715,22 +892,348 @@ export function ClassementView() {
         <button
           type="button"
           className="classement-tab-btn"
-          data-active={tabAnnualActive}
-          onClick={() => setActiveTab("annual")}
-        >
-          <UsersIcon size={16} />
-          <span>Annuel 26-27</span>
-        </button>
-        <button
-          type="button"
-          className="classement-tab-btn"
           data-active={tabStatsActive}
           onClick={() => setActiveTab("stats")}
         >
-          <TrophyIcon size={16} />
+          <ClubSuitIcon size={15} />
           <span>Bilan &amp; Podium</span>
         </button>
       </nav>
+
+      {activeTab === "teams_enseirb" && (
+        <section
+          aria-label="Classement par équipe ENSEIRB : quelles sont les équipes qui gagnent le plus"
+          style={{ display: "flex", flexDirection: "column", gap: "14px" }}
+        >
+          <ClubAccountGateCard
+            title="Connecte-toi pour enregistrer ton binôme et ajouter tes partenaires"
+            compact
+          />
+
+          <PartnerDiscoveryAndAddCard
+            tournamentState={state}
+            casualGames={casualGames}
+            directory={playerDirectory}
+          />
+
+          <ClashRoyaleSoundboardBar compact />
+
+          <ShareWebsiteBanner compact />
+
+          {/* PODIUM TOP 3 DES ÉQUIPES QUI GAGNENT LE PLUS À L'ENSEIRB */}
+          {liveTeamLeaderboard.length > 0 && (
+            <div className="podium-grid">
+              {liveTeamLeaderboard.slice(0, 3).map((topTeam) => {
+                let medalLabel = "1re Équipe ENSEIRB · Or";
+                let cardClass = "card-ruled";
+                if (topTeam.rank === 2) {
+                  medalLabel = "2e Équipe ENSEIRB · Argent";
+                  cardClass = "card";
+                } else if (topTeam.rank === 3) {
+                  medalLabel = "3e Équipe ENSEIRB · Bronze";
+                  cardClass = "card";
+                }
+                let netPrefix = "";
+                if (topTeam.netBalance > 0) {
+                  netPrefix = "+";
+                }
+                return (
+                  <article key={`podium-${topTeam.teamKey}`} className={cardClass}>
+                    <span className="eyebrow">
+                      <TrophyIcon size={13} />
+                      <span>{medalLabel}</span>
+                    </span>
+                    <h3 className="section-title" style={{ marginTop: "6px" }}>
+                      {topTeam.pairLabel}
+                    </h3>
+                    {topTeam.teamNickname !== null && (
+                      <div
+                        style={{
+                          fontSize: "12px",
+                          fontWeight: 700,
+                          color: "var(--accent-terracotta)",
+                        }}
+                      >
+                        « {topTeam.teamNickname} »
+                      </div>
+                    )}
+                    <p
+                      style={{
+                        margin: "4px 0 10px",
+                        fontSize: "12.5px",
+                        color: "var(--ink-secondary)",
+                      }}
+                    >
+                      <strong>
+                        {topTeam.matchesWon} Victoire(s)
+                      </strong>{" "}
+                      ({topTeam.winRatePercent}%) · {netPrefix}
+                      {topTeam.netBalance} pts net
+                    </p>
+                    <div
+                      style={{
+                        display: "flex",
+                        justifyContent: "space-between",
+                        alignItems: "center",
+                        gap: "8px",
+                        flexWrap: "wrap",
+                      }}
+                    >
+                      <span className="badge badge-amber">
+                        {topTeam.teamPoints} pts équipe
+                      </span>
+                      <Link
+                        href={`/jouer?adv1=${encodeURIComponent(topTeam.player1Name)}&adv2=${encodeURIComponent(topTeam.player2Name)}`}
+                        className="btn btn-sm btn-secondary"
+                      >
+                        <span>Défier au BAR</span>
+                      </Link>
+                    </div>
+                  </article>
+                );
+              })}
+            </div>
+          )}
+
+          <div className="card-ruled">
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                gap: "8px",
+                flexWrap: "wrap",
+              }}
+            >
+              <div>
+                <span className="eyebrow">
+                  <TrophyIcon size={13} />
+                  <span>
+                    Palmarès des Duos · Tournois Officiels + Parties au BAR
+                  </span>
+                </span>
+                <h2 className="section-title" style={{ marginTop: "4px" }}>
+                  Quelles sont les équipes qui gagnent le plus à l&apos;ENSEIRB ? (
+                  {filteredLiveTeams.length} binômes)
+                </h2>
+              </div>
+              <div style={{ display: "inline-flex", gap: "6px", flexWrap: "wrap" }}>
+                <button
+                  type="button"
+                  className="btn btn-sm btn-secondary"
+                  onClick={handleExportEnseirbLeaderboardsCsv}
+                >
+                  <span>Exporter Équipes &amp; Individuel (CSV)</span>
+                </button>
+                <Link href="/jouer" className="btn btn-sm btn-primary">
+                  <TableCardsIcon size={15} />
+                  <span>Jouer un match en duo au BAR</span>
+                </Link>
+              </div>
+            </div>
+            <p
+              style={{
+                margin: "6px 0 0",
+                fontSize: "12.5px",
+                color: "var(--ink-secondary)",
+              }}
+            >
+              Classement cumulé de toutes les paires de joueurs de l&apos;école
+              par nombre de victoires, taux de réussite (%), points d&apos;équipe
+              et goal-average net (+/-).
+            </p>
+
+            <div
+              style={{
+                marginTop: "10px",
+                display: "flex",
+                gap: "8px",
+                flexWrap: "wrap",
+                alignItems: "center",
+              }}
+            >
+              <input
+                id="team-enseirb-search"
+                type="search"
+                className="field-input"
+                style={{ flex: "1 1 220px" }}
+                placeholder="Rechercher une équipe, un prénom ou une filière (ex. Info, Télécoms)..."
+                value={teamSearch}
+                onChange={(e) => setTeamSearch(e.target.value)}
+              />
+            </div>
+          </div>
+
+          {filteredLiveTeams.length === 0 && (
+            <div className="card">
+              <p
+                style={{
+                  margin: 0,
+                  fontSize: "13.5px",
+                  color: "var(--ink-secondary)",
+                }}
+              >
+                Aucune équipe enregistrée pour l&apos;instant : l&apos;application
+                démarre à zéro sans joueurs fictifs. Connectez-vous ci-dessus et
+                ajoutez votre partenaire ou lancez une partie sur{" "}
+                <Link
+                  href="/jouer"
+                  style={{
+                    color: "var(--accent-terracotta)",
+                    fontWeight: 700,
+                    textDecoration: "underline",
+                  }}
+                >
+                  /jouer
+                </Link>{" "}
+                pour inaugurer le classement par équipe de l&apos;ENSEIRB !
+              </p>
+            </div>
+          )}
+
+          <div className="annual-list">
+            {filteredLiveTeams.map((team) => {
+              let topAttr = "false";
+              if (team.rank <= 3) {
+                topAttr = "true";
+              }
+              let netBadgeClass = "badge badge-pass";
+              let netPrefix = "+";
+              if (team.netBalance < 0) {
+                netBadgeClass = "badge badge-fail";
+                netPrefix = "";
+              }
+
+              return (
+                <article
+                  key={team.teamKey}
+                  className="annual-player-card"
+                  data-top={topAttr}
+                >
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      gap: "10px",
+                      flexWrap: "wrap",
+                    }}
+                  >
+                    <div
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "10px",
+                      }}
+                    >
+                      <span className="pool-rank-num">#{team.rank}</span>
+                      <div>
+                        <div
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: "8px",
+                            flexWrap: "wrap",
+                          }}
+                        >
+                          <strong
+                            className="font-display"
+                            style={{
+                              fontSize: "21px",
+                              textTransform: "uppercase",
+                            }}
+                          >
+                            {team.pairLabel}
+                          </strong>
+                          {team.teamNickname !== null && (
+                            <span className="badge badge-terracotta">
+                              « {team.teamNickname} »
+                            </span>
+                          )}
+                          <span className="badge badge-amber">
+                            {team.matchesWon} Victoire(s) ·{" "}
+                            {team.winRatePercent}%
+                          </span>
+                          {team.tournamentsFinalWon > 0 && (
+                            <span className="badge badge-pass">
+                              {team.tournamentsFinalWon}× Vainqueur Tournoi
+                            </span>
+                          )}
+                        </div>
+                        <div
+                          style={{
+                            fontSize: "12px",
+                            color: "var(--ink-secondary)",
+                            marginTop: "2px",
+                          }}
+                        >
+                          {team.promotionLabel} · Bilan :{" "}
+                          <strong>
+                            {team.matchesWon}V–{team.matchesLost}D
+                          </strong>{" "}
+                          ({team.tournamentMatchesWon}V Tournoi ·{" "}
+                          {team.casualMatchesWon}V BAR)
+                        </div>
+                      </div>
+                    </div>
+
+                    <div
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "8px",
+                      }}
+                    >
+                      <span className={netBadgeClass}>
+                        {netPrefix}
+                        {team.netBalance} net
+                      </span>
+                      <span
+                        className="font-display tabular-nums"
+                        style={{
+                          fontSize: "24px",
+                          fontWeight: 800,
+                          color: "var(--accent-terracotta)",
+                        }}
+                      >
+                        {team.teamPoints} pts
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="annual-stats-pills">
+                    <span className="badge badge-neutral">
+                      {team.pointsScored} pts marqués · {team.pointsConceded}{" "}
+                      encaissés
+                    </span>
+                    {team.bestWinStreak > 0 && (
+                      <span className="badge badge-pass">
+                        Meilleure série : {team.bestWinStreak} victoire(s)
+                        d&apos;affilée
+                      </span>
+                    )}
+                    {(team.capotsCount > 0 ||
+                      team.generalesCount > 0 ||
+                      team.coinchesCount > 0) && (
+                      <span className="badge badge-amber">
+                        {team.capotsCount} Capot(s) · {team.generalesCount}{" "}
+                        Générale(s) · {team.coinchesCount} Coinche(s)
+                      </span>
+                    )}
+                    <Link
+                      href={`/jouer?adv1=${encodeURIComponent(team.player1Name)}&adv2=${encodeURIComponent(team.player2Name)}`}
+                      className="btn btn-sm btn-secondary"
+                      style={{ minHeight: "26px", padding: "0 8px", fontSize: "11.5px" }}
+                    >
+                      <span>Défier ce duo au BAR</span>
+                    </Link>
+                  </div>
+                </article>
+              );
+            })}
+          </div>
+        </section>
+      )}
 
       {activeTab === "pools" && (
         <section
@@ -1063,27 +1566,11 @@ export function ClassementView() {
         >
           {!summary.hasRealKnockoutBracket && (
             <div className="banner banner-info" role="status">
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                  gap: "10px",
-                  width: "100%",
-                  flexWrap: "wrap",
-                }}
-              >
-                <span>
-                  <strong>Projection temps réel de l&apos;arbre :</strong> les
-                  poules sont encore en cours. Pour figer ces affiches et noter
-                  les scores des Huitièmes, cliquez sur « Clôturer poules &amp;
-                  Générer l&apos;Arbre » dans le poste Admin.
-                </span>
-                <Link href="/admin" className="btn btn-sm btn-secondary">
-                  <LockIcon size={14} />
-                  <span>Ouvrir /admin</span>
-                </Link>
-              </div>
+              <span>
+                <strong>Projection temps réel de l&apos;arbre :</strong> les
+                poules sont encore en cours. Dès que tous les matchs de poule
+                sont terminés, l&apos;arbre final est généré automatiquement.
+              </span>
             </div>
           )}
 
@@ -1413,88 +1900,126 @@ export function ClassementView() {
 
       {activeTab === "annual" && (
         <section
-          aria-label="Classement général annuel Coinch'Eirb"
+          aria-label="Classement individuel annuel Coinch'Eirb"
           style={{ display: "flex", flexDirection: "column", gap: "14px" }}
         >
+          <ClubAccountGateCard />
+
+          <PartnerDiscoveryAndAddCard
+            tournamentState={state}
+            casualGames={casualGames}
+            directory={playerDirectory}
+          />
+
           <div className="card-ruled">
-            <span className="eyebrow">
-              Comptes joueurs optionnels · Saison universitaire
-            </span>
-            <h2 className="section-title" style={{ marginTop: "4px" }}>
-              Classement Général Annuel Coinch&apos;Eirb
-            </h2>
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                gap: "8px",
+                flexWrap: "wrap",
+              }}
+            >
+              <div>
+                <span className="eyebrow">
+                  Classement Individuel ENSEIRB · Tournois (×3) + Parties au BAR
+                </span>
+                <h2 className="section-title" style={{ marginTop: "4px" }}>
+                  Classement Individuel ({filteredLiveAnnual.length} joueurs)
+                </h2>
+              </div>
+              <Link href="/jouer" className="btn btn-sm btn-primary">
+                <TableCardsIcon size={15} />
+                <span>Compter une partie au BAR</span>
+              </Link>
+            </div>
             <p
               style={{
-                margin: "6px 0 12px",
-                fontSize: "13px",
+                margin: "6px 0 0",
+                fontSize: "12.5px",
                 color: "var(--ink-secondary)",
               }}
             >
-              Les joueurs ayant relié un compte facultatif cumulent leurs points
-              de classement, victoires, Capots et Générales sur toute
-              l&apos;année scolaire.
+              Chaque joueur de l&apos;ENSEIRB cumule ses victoires, son taux de
+              réussite et son goal-average net (+/-) avec tous ses partenaires.
             </p>
 
-            <div className="annual-controls">
-              <div>
-                <label className="field-label" htmlFor="annual-search">
-                  Rechercher un joueur ou une filière
-                </label>
-                <input
-                  id="annual-search"
-                  type="search"
-                  className="field-input"
-                  placeholder="Ex. Quentin, Adèle, Informatique, Matmeca..."
-                  value={annualSearch}
-                  onChange={(e) => setAnnualSearch(e.target.value)}
-                />
-              </div>
-
-              <div>
-                <label className="field-label" htmlFor="annual-year">
-                  Année scolaire
-                </label>
-                <select
-                  id="annual-year"
-                  className="field-input"
-                  value={annualSchoolYear}
-                  onChange={(e) => setAnnualSchoolYear(e.target.value)}
-                >
-                  <option value="2026-2027">Saison 2026-2027</option>
-                  <option value="2025-2026">Archive 2025-2026</option>
-                  <option value="ALL">Toutes les saisons</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="field-label" htmlFor="annual-promo">
-                  Promotion
-                </label>
-                <select
-                  id="annual-promo"
-                  className="field-input"
-                  value={annualPromoFilter}
-                  onChange={(e) => setAnnualPromoFilter(e.target.value)}
-                >
-                  <option value="ALL">Toutes les promotions</option>
-                  <option value="1A (2028)">1A (2028)</option>
-                  <option value="2A (2027)">2A (2027)</option>
-                  <option value="3A (2026)">3A (2026)</option>
-                  <option value="Alumni">Alumni</option>
-                </select>
-              </div>
+            <div
+              style={{
+                marginTop: "10px",
+                display: "flex",
+                gap: "8px",
+                flexWrap: "wrap",
+                alignItems: "center",
+              }}
+            >
+              <input
+                id="annual-search"
+                type="search"
+                className="field-input"
+                style={{ flex: "1 1 200px" }}
+                placeholder="Rechercher un joueur ou une filière (ex. Info, Matmeca)..."
+                value={annualSearch}
+                onChange={(e) => setAnnualSearch(e.target.value)}
+              />
+              <button
+                type="button"
+                className="btn btn-sm btn-secondary"
+                onClick={() => setOnlyVerifiedAnnual((prev) => !prev)}
+              >
+                {onlyVerifiedAnnual && "Comptes vérifiés uniquement : ON"}
+                {!onlyVerifiedAnnual && "Tous (Vérifiés + Ajoutés)"}
+              </button>
             </div>
           </div>
 
+          {filteredLiveAnnual.length === 0 && (
+            <div className="card">
+              <p
+                style={{
+                  margin: 0,
+                  fontSize: "13.5px",
+                  color: "var(--ink-secondary)",
+                }}
+              >
+                Aucun joueur enregistré pour le moment (0 joueur fictif).
+                Connecte-toi ci-dessus ou ajoute ton partenaire pour apparaître
+                dans le classement individuel de l&apos;ENSEIRB !
+              </p>
+            </div>
+          )}
+
           <div className="annual-list">
-            {filteredAnnualPlayers.map((player) => {
+            {filteredLiveAnnual
+              .filter((player) => {
+                if (!onlyVerifiedAnnual) {
+                  return true;
+                }
+                const firstToken = player.playerKey.split(" ")[0] ?? "";
+                return (
+                  verifiedKeySet.has(player.playerKey) ||
+                  verifiedKeySet.has(firstToken)
+                );
+              })
+              .map((player) => {
               let topAttr = "false";
               if (player.rank <= 3) {
                 topAttr = "true";
               }
+              const firstToken = player.playerKey.split(" ")[0] ?? "";
+              const isVerifiedAccount =
+                verifiedKeySet.has(player.playerKey) ||
+                verifiedKeySet.has(firstToken);
+              let netBadgeClass = "badge badge-pass";
+              let netPrefix = "+";
+              if (player.netBalance < 0) {
+                netBadgeClass = "badge badge-fail";
+                netPrefix = "";
+              }
               return (
                 <article
-                  key={player.profileId}
+                  key={player.playerKey}
                   className="annual-player-card"
                   data-top={topAttr}
                 >
@@ -1516,28 +2041,62 @@ export function ClassementView() {
                     >
                       <span className="pool-rank-num">#{player.rank}</span>
                       <div>
-                        <strong
-                          className="font-display"
-                          style={{
-                            fontSize: "19px",
-                            textTransform: "uppercase",
-                          }}
-                        >
-                          {player.displayName}
-                        </strong>
+                        <div style={{ display: "flex", alignItems: "center", gap: "6px", flexWrap: "wrap" }}>
+                          <strong
+                            className="font-display"
+                            style={{
+                              fontSize: "20px",
+                              textTransform: "uppercase",
+                            }}
+                          >
+                            {player.displayName}
+                          </strong>
+                          {isVerifiedAccount && (
+                            <span className="badge badge-pass">Vérifié</span>
+                          )}
+                          {!isVerifiedAccount &&
+                            player.addedByPseudo !== null && (
+                              <span className="badge badge-amber">
+                                Ajouté par @{player.addedByPseudo}
+                              </span>
+                            )}
+                          {!isVerifiedAccount &&
+                            player.addedByPseudo === null && (
+                              <span className="badge badge-neutral">
+                                Joueur BAR
+                              </span>
+                            )}
+                          <span className="badge badge-neutral">
+                            {player.promoYear} · {player.department}
+                          </span>
+                        </div>
                         <div
                           style={{
                             fontSize: "12px",
                             color: "var(--ink-secondary)",
                           }}
                         >
-                          {player.department} · {player.promotionYear} ·{" "}
-                          {player.bestFinishLabel}
+                          <strong>
+                            {player.gamesWon}V–{player.gamesLost}D (
+                            {player.winRatePercent}%)
+                          </strong>{" "}
+                          · {player.playStyle} · {player.tournamentGames} tournoi
+                          · {player.casualGames} BAR
                         </div>
                       </div>
                     </div>
 
-                    <div style={{ textAlign: "right" }}>
+                    <div
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "8px",
+                      }}
+                    >
+                      <span className={netBadgeClass}>
+                        {netPrefix}
+                        {player.netBalance} net
+                      </span>
                       <span
                         className="font-display tabular-nums"
                         style={{
@@ -1546,33 +2105,26 @@ export function ClassementView() {
                           color: "var(--accent-terracotta)",
                         }}
                       >
-                        {player.rankingPoints} pts
+                        {player.annualPoints} pts
                       </span>
-                      <div
-                        style={{
-                          fontSize: "11px",
-                          color: "var(--ink-muted)",
-                        }}
-                      >
-                        Saison {player.schoolYear}
-                      </div>
                     </div>
                   </div>
 
                   <div className="annual-stats-pills">
-                    <span className="badge badge-amber">
-                      {player.tournamentsPlayed} tournois (
-                      {player.tournamentsWon} titres)
-                    </span>
-                    <span className="badge badge-pass">
-                      {player.matchesWon}/{player.matchesPlayed} victoires
-                    </span>
+                    {player.bestPartner !== null && (
+                      <span className="badge badge-amber">
+                        Meilleur duo : {player.bestPartner.name} (
+                        {player.bestPartner.wins}V/{player.bestPartner.games})
+                      </span>
+                    )}
+                    {player.nemesis !== null && (
+                      <span className="badge badge-fail">
+                        Bête noire : {player.nemesis.name} ({player.nemesis.losses}D)
+                      </span>
+                    )}
                     <span className="badge badge-neutral">
-                      {player.totalPointsScored} pts marqués
-                    </span>
-                    <span className="badge badge-terracotta">
-                      {player.capotsPassed} Capots · {player.generalesPassed}{" "}
-                      Générales · {player.coinchesPassed} Coinches
+                      {player.pointsScored} marqués · {player.pointsConceded}{" "}
+                      encaissés
                     </span>
                   </div>
                 </article>
@@ -1604,7 +2156,7 @@ export function ClassementView() {
                 <img
                   src={
                     state.tournament.winnerPhotoUrl ??
-                    "/assets/media/vainqueur-precedent.jpg"
+                    "/assets/vainqueurs/vainqueur-01.jpg"
                   }
                   alt={
                     state.tournament.winnerPhotoCaption ??

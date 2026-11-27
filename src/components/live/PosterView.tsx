@@ -36,7 +36,7 @@ export function PosterView(props: PosterViewProps) {
   }, []);
 
   const winnerImg =
-    props.winnerPhotoUrl ?? "/assets/media/vainqueur-precedent.jpg";
+    props.winnerPhotoUrl ?? "/assets/vainqueurs/vainqueur-01.jpg";
   const winnerLabel =
     props.winnerPhotoCaption ?? "Derniers vainqueurs · Coinch'Eirb";
 

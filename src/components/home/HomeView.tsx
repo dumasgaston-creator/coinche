@@ -18,11 +18,15 @@ import {
 import { useTournamentStore } from "@/lib/tournament/use-tournament-store";
 import {
   ArrowRightIcon,
-  LockIcon,
+  ClubSuitIcon,
+  DiamondSuitIcon,
+  HeartSuitIcon,
   ProjectorScreenIcon,
+  SpadeSuitIcon,
   TableCardsIcon,
   TrophyIcon,
 } from "@/components/icons/Icons";
+import { ShareWebsiteBanner } from "@/components/layout/ShareWebsiteBanner";
 
 interface HomeViewProps {
   posterUrl: string;
@@ -74,7 +78,7 @@ export function HomeView(props: HomeViewProps) {
 
   let activePosterUrl = props.posterUrl;
   let activeStart = props.startTimeLabel;
-  let activeWinnerPhoto = "/assets/media/vainqueur-precedent.jpg";
+  let activeWinnerPhoto = "/assets/vainqueurs/vainqueur-01.jpg";
   let activeWinnerCaption = "Derniers vainqueurs · Coinch'Eirb";
 
   if (hydrated) {
@@ -171,6 +175,11 @@ export function HomeView(props: HomeViewProps) {
     }
   }
 
+  let contactMetaLabel = "Tournoi en direct";
+  if (hydrated) {
+    contactMetaLabel = `${state.teams.length} binômes inscrits`;
+  }
+
   return (
     <div className="container-home">
       {/* HERO ÉDITORIAL PHOTOGRAPHIQUE */}
@@ -191,12 +200,24 @@ export function HomeView(props: HomeViewProps) {
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src="/assets/media/logo-abeilles.jpg"
-                alt="Logo Coinch'Eirb"
+                alt="Logo abeilles Coinch'Eirb"
                 className="home-brand-crest"
               />
-              <span className="home-brand-kicker">
-                ENSEIRB-MATMECA · {activeStart}
-              </span>
+              <div style={{ display: "flex", flexDirection: "column", gap: "3px" }}>
+                <span className="home-brand-kicker">
+                  ENSEIRB-MATMECA · AU BAR · {activeStart}
+                </span>
+                <span
+                  className="suits-strip"
+                  aria-hidden="true"
+                  style={{ color: "#e8a628" }}
+                >
+                  <SpadeSuitIcon size={11} />
+                  <HeartSuitIcon size={11} />
+                  <DiamondSuitIcon size={11} />
+                  <ClubSuitIcon size={11} />
+                </span>
+              </div>
             </div>
 
             <h1 id="home-hero-title" className="home-editorial-title">
@@ -310,6 +331,12 @@ export function HomeView(props: HomeViewProps) {
                 <TableCardsIcon size={16} />
                 <span>Ma table</span>
               </Link>
+              <Link href="/jouer" className="home-nav-ghost">
+                <span>Partie libre (BAR)</span>
+              </Link>
+              <Link href="/memes" className="home-nav-ghost">
+                <span>Boîte à Memes</span>
+              </Link>
               <Link href="/classement" className="home-nav-ghost">
                 <TrophyIcon size={15} />
                 <span>Poules &amp; Arbre</span>
@@ -317,10 +344,6 @@ export function HomeView(props: HomeViewProps) {
               <Link href="/live" className="home-nav-ghost">
                 <ProjectorScreenIcon size={15} />
                 <span>Projecteur /live</span>
-              </Link>
-              <Link href="/admin" className="home-nav-ghost">
-                <LockIcon size={14} />
-                <span>Admin</span>
               </Link>
             </nav>
           </div>
@@ -338,7 +361,17 @@ export function HomeView(props: HomeViewProps) {
         </div>
       </section>
 
-      {/* PELLICULE PHOTOS RÉELLES & VAINQUEURS */}
+      {/* LIEN CLIQUABLE & QR CODE POUR REJOINDRE LE SITE */}
+      <div style={{ marginTop: "14px", marginBottom: "14px" }}>
+        <ShareWebsiteBanner />
+      </div>
+
+      {/* PLANCHE-CONTACT PHOTOS RÉELLES & VAINQUEURS (100 % NON ROGNÉES) */}
+      <div className="home-contact-header">
+        <h2 className="home-contact-title">Au BAR · Pellicule du club</h2>
+        <span className="home-contact-meta">{contactMetaLabel}</span>
+      </div>
+
       <section className="home-photo-wall" aria-label="Ambiance et vainqueurs">
         <figure className="home-photo-tile home-photo-winner">
           {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -348,6 +381,7 @@ export function HomeView(props: HomeViewProps) {
             className="home-photo-img"
           />
           <figcaption className="home-photo-cap">
+            <span className="home-photo-num">N°01</span>
             <TrophyIcon size={14} />
             <span>{activeWinnerCaption}</span>
           </figcaption>
@@ -361,6 +395,7 @@ export function HomeView(props: HomeViewProps) {
             className="home-photo-img"
           />
           <figcaption className="home-photo-cap">
+            <span className="home-photo-num">N°02</span>
             <span>Au BAR</span>
           </figcaption>
         </figure>
@@ -373,7 +408,21 @@ export function HomeView(props: HomeViewProps) {
             className="home-photo-img"
           />
           <figcaption className="home-photo-cap">
+            <span className="home-photo-num">N°03</span>
             <span>5 donnes · Sans pitié</span>
+          </figcaption>
+        </figure>
+
+        <figure className="home-photo-tile">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src="/assets/media/soiree-duo.jpg"
+            alt="Duo en soirée Coinch'Eirb"
+            className="home-photo-img"
+          />
+          <figcaption className="home-photo-cap">
+            <span className="home-photo-num">N°04</span>
+            <span>Esprit binôme</span>
           </figcaption>
         </figure>
 
@@ -385,6 +434,7 @@ export function HomeView(props: HomeViewProps) {
             className="home-photo-img"
           />
           <figcaption className="home-photo-cap">
+            <span className="home-photo-num">N°05</span>
             <span>Voulez-vous coincher ?</span>
           </figcaption>
         </figure>
